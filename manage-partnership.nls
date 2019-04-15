@@ -1,0 +1,639 @@
+;; This file contains all procedures that deal with partnerships
+
+;; This procedure is called every time-unit 
+to set-num-ptnr
+  
+  ;; assign sexual behavioral attributes that change with age
+  let i 0 
+  while [i < length age-sexual]
+  [
+    if age <= item i age-sexual
+    [
+      ;; determine the number of main partners
+      ;; -1 because looking at length of partnership 
+      ;; (i.e., considering have a ptnr and how long for another episode/ptnr)
+      set num-ptnr item i (item (sex - 1) main-ptnrs) - 1  
+      set no-ptnr (item i (item (sex - 1) no-ptnrs)) ^ (1 / time-unit)
+      if sex > 3
+      [set num-IDU-ptnr item (sex - 1) main-IDU-ptnrs - 1]
+      ;; determine the probability of not havign a partner
+      ;; determine the number of casual sexual partners
+      ;; assume PWID have the same casual sexual preferences with MSM
+      let randnum 0
+      ifelse random-float 1 <= item (sex - 1) prob-casual
+      [
+        ;; if person has casual partners
+        ifelse random-float 1 <= (item (sex - 1) prob-casual-only) / (item (sex - 1) prob-casual)
+        [
+          ;; if person has only casual partners
+          set num-ptnr 0; there is no main partner
+          set randnum random-float 1
+          ifelse randnum <= 0.25
+          [set casual-sexual-ptnr item (sex - 1) num-casual-only-min + random (item (sex - 1) num-casual-only-1Q - item (sex - 1) num-casual-only-min + 1)]
+          [
+            ifelse randnum <= 0.5
+            [set casual-sexual-ptnr item (sex - 1) num-casual-only-1Q + random (item (sex - 1) num-casual-only-median - item (sex - 1) num-casual-only-1Q + 1)]
+            [
+              ifelse randnum <= 0.75
+              [set casual-sexual-ptnr item (sex - 1) num-casual-only-median + random (item (sex - 1) num-casual-only-3Q - item (sex - 1) num-casual-only-median + 1)]
+              [set casual-sexual-ptnr item (sex - 1) num-casual-only-3Q + random (item (sex - 1) num-casual-only-max - item (sex - 1) num-casual-only-3Q + 1)]
+            ]
+          ] 
+        ]
+        [
+          ;; if person has both main and casaul partners
+          set randnum random-float 1
+          ifelse randnum <= 0.25
+          [set casual-sexual-ptnr item (sex - 1) num-casual-main-min + random (item (sex - 1) num-casual-main-1Q - item (sex - 1) num-casual-main-min + 1)]
+          [
+            ifelse randnum <= 0.5
+            [set casual-sexual-ptnr item (sex - 1) num-casual-main-1Q + random (item (sex - 1) num-casual-main-median - item (sex - 1) num-casual-main-1Q + 1)]
+            [
+              ifelse randnum <= 0.75
+              [set casual-sexual-ptnr item (sex - 1) num-casual-main-median + random (item (sex - 1) num-casual-main-3Q - item (sex - 1) num-casual-main-median + 1)] 
+              [set casual-sexual-ptnr item (sex - 1) num-casual-main-3Q + random (item (sex - 1) num-casual-main-max - item (sex - 1) num-casual-main-3Q + 1)]
+            ]
+          ; set casual-ptnr (item i casual-ptnrs)  + random-float ((item (i + length (age-ptnr-dist)) casual-ptnrs) - item i casual-ptnrs)
+          ]
+        ]
+      ]
+      [
+        ;; no casual partners
+        set casual-sexual-ptnr 0
+      ]
+      set i length age-sexual
+    ]
+    set i i + 1    
+  ]
+  
+  ifelse sex >= 4 and needle-sharing? = true
+  [set casual-IDU-ptnr min-IDU-ptnr + random (max-IDU-ptnr - min-IDU-ptnr)]
+  [set casual-IDU-ptnr 0]
+  
+end
+
+;; assign sexual behaviors based on age
+to set-sexual-behavior
+  
+  set protected-acts-unaware 0
+  set protected-acts-casual-unaware 0
+  set num-acts-yearly 0
+  set prob-anal-sex 0
+  
+  ;; assigning sexual behaviors based on age
+  let i 0  
+  while [i < length age-sexual]
+  [
+    if age < item i age-sexual 
+    [
+      set num-acts-yearly item i (item (sex - 1) num-sex-acts)
+      set prob-anal-sex item i (item (sex - 1) prop-anal-acts)
+      set protected-acts-unaware min (list (item i (item (sex - 1) condom-use-main) * condom-use-main-increase) 1)
+      set protected-acts-casual-unaware min (list (item i (item (sex - 1) condom-use-casual) * condom-use-casual-increase) 1)
+      set i length age-sexual
+    ]
+    set i i + 1
+  ]
+  
+  ;; assign the proportion of PLWH who practice serosorting
+  ;; serosorting: selecting partners based on HIV status
+  ifelse sex = 3 or sex = 6
+  [set serosorting prob-serosorting]
+  [set serosorting 0]  
+  
+end
+
+;; assign initial partnership when a person gets infected
+to set-initial-ptnr  
+  
+  ;; a person can have two concurent partners at any time (but they can have more than two partners in a year)
+  set ptnr-array [0 0]; [0 0] if no partners; [1 0] if one partners; [1 1] if two concurrent partners
+  set ptnr-length [0 0]; determines the total length of current partnerships
+  set ptnr-counter [0 0]; the time elasped of current partnerships
+  set ptnr-infected? [false false]; HIV status of the two partners
+  set counter-ptnr [0 0 0 0]; counter to track the number of [main concurrent casual-sexual casual-IDU] partners in this year
+  
+  ;; tracking partner type, sex and whether needle-sharing
+  set main-ptnr-type [0 0]; 0 sexual partnership only, 1 needle-sharing partnership only, 2 both  
+  set main-ptnr-sex [0 0]; tracks the sex/risk group of partners
+  set main-ptnr-sharing? [false false]; tracks whether partners are sharing needles
+  
+  ;; determine whether MSM is bisexual
+  ifelse random-float 1 <= prob-bisexual and (sex = 3 or sex = 6)
+  [set bi-sexual? true]
+  [set bi-sexual? false]
+  
+  ;; assign concurrent partnerships
+  let ind 0
+  ifelse num-ptnr > 0
+  [
+    ;; has at least one main partner
+    ;; if at most 2 main partners, only ind = 0 will be processed
+    while [ind < length (ptnr-array) - 1] 
+    [ 
+      ;; Determine if concurrent partnership occurs
+      ifelse random-float 1 < item (sex - 1) prop-concurrency
+      [ 
+        ;; main partnership
+        set ptnr-array replace-item 0 ptnr-array 1
+        set counter-ptnr replace-item 0 counter-ptnr (item 0 counter-ptnr + 1)
+        
+        ;; for PWID who share needles, partner type can be either sexual only (0), needle-sharing only (1), or both (2)
+        ;; for non-PWID and PWID who do not share needles, partner type can only be sexual only (default)  
+        let randnum 0      
+        if sex > 3 and needle-sharing? = true
+        [
+          ;; if PLWH is needle-sharing, main partner type can be any
+          set randnum random-float 1
+          
+          ;; using IDU-ptnr-mix to determine partner type
+          ifelse randnum <= item 0 (item (sex - 4) IDU-ptnr-type-mixing)
+          [set main-ptnr-type replace-item ind main-ptnr-type 0]
+          [
+            ifelse randnum <= item 0 (item (sex - 4) IDU-ptnr-type-mixing) + item 1 (item (sex - 4) IDU-ptnr-type-mixing)
+            [set main-ptnr-type replace-item ind main-ptnr-type 1]
+            [set main-ptnr-type replace-item ind main-ptnr-type 2]
+          ]       
+        ]
+        
+        ifelse item ind main-ptnr-type = 0 or item ind main-ptnr-type = 2
+        [set ptnr-length replace-item 0 ptnr-length ((- ln (random-float 1) / (num-ptnr)) * time-unit)]
+        [set ptnr-length replace-item 0 ptnr-length ((- ln (random-float 1) / (num-IDU-ptnr)) * time-unit)]
+        ;; concurrent partnership length follows exponential distribution with rate concurrency-lambda
+        set ptnr-array replace-item (ind + 1) ptnr-array 1
+        set counter-ptnr replace-item 1 counter-ptnr (item 1 counter-ptnr + 1)     
+        set ptnr-length replace-item (ind + 1) ptnr-length ((- ln (random-float 1) / (item (sex - 1) concurrency-lambda)) * time-unit)        
+        set in-concurrency 1
+      ]
+      [
+        set in-concurrency 0
+        if random-float 1 > no-ptnr
+        [
+          set ptnr-array replace-item 0 ptnr-array 1
+          set counter-ptnr replace-item 0 counter-ptnr (item 0 counter-ptnr + 1)
+          ifelse item ind main-ptnr-type = 0 or item ind main-ptnr-type = 2
+          [set ptnr-length replace-item 0 ptnr-length ((- ln (random-float 1) / (num-ptnr)) * time-unit)]
+          [set ptnr-length replace-item 0 ptnr-length ((- ln (random-float 1) / (num-IDU-ptnr)) * time-unit)]          
+        ]
+      ]
+      set ind ind + 1
+    ]
+  ]
+  [
+    if num-IDU-ptnr > 0 and needle-sharing? = true
+    [
+      set ptnr-array replace-item 0 ptnr-array 1
+      set counter-ptnr replace-item 0 counter-ptnr (item 0 counter-ptnr + 1)
+      set main-ptnr-type replace-item ind main-ptnr-type 1
+      set ptnr-length replace-item 0 ptnr-length ((- ln (random-float 1) / (num-IDU-ptnr)) * time-unit)
+    ] 
+  ]
+  
+  ;; loop over main and concurrent partners to assign the sex/risk group of partners
+  set ind 0
+  while [ind < length (ptnr-array)]
+  [    
+    ;; only proceed if main partner exisits
+    if item ind ptnr-array = 1
+    [assign-main-ptnr ind]
+    set ind ind + 1
+  ]
+  
+;  if sum ptnr-array > 0
+;  [
+;    print ptnr-array
+;    print main-ptnr-type
+;    print ptnr-length
+;  ]
+  
+  ;; initialize number of transmissions due to each type of partnership 
+  set num-trans-One 0
+  set num-trans-Two 0
+  set num-trans-Casual 0
+  
+  set prev-num-trans 0
+  set num-trans-incprev 0
+  
+end
+
+;; assign sex/risk group, HIV status and needles-sharing status of main partners
+to assign-main-ptnr [ind]
+  
+  ;; assigning sex/risk group and HIV status to main partners
+  ;; PLWH is HET-female or IDU-female, partner type is sexual only
+  if sex = 1
+  [
+    ;; if serosorting, determine whether partner is HET male or IDU male based on proportion in PLWH
+    ;; HIV status set to positive
+    ifelse stage >= 3 and random-float 1 <= serosorting
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? true
+      ifelse random-float 1 <= 
+             item 1 prevalence * perc-HET-MEN / 
+             (item 1 prevalence * perc-HET-MEN + item 4 prevalence * perc-IDU-MEN)
+      [set main-ptnr-sex replace-item ind main-ptnr-sex 2]
+      [set main-ptnr-sex replace-item ind main-ptnr-sex 5]
+    ]
+    
+    ;; if not serosorting, determine whether partner is HET male or IDU male based on proportion in PLWH + non-PLWH
+    ;; determine HIV status by prevalence
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? false
+      ifelse random-float 1 <= perc-HET-MEN / (perc-HET-MEN + perc-IDU-MEN)
+      [
+        ;; partner is HET-male
+        set main-ptnr-sex replace-item ind main-ptnr-sex 2
+        if random-float 1 <= item 1 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+      [
+        ;; partner is IDU-male
+        set main-ptnr-sex replace-item ind main-ptnr-sex 5
+        if random-float 1 <= item 4 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+    ]
+  ]
+  
+  if sex = 4 and item ind main-ptnr-type = 0
+  [
+    ;; if serosorting, HIV status set to positive
+    ifelse stage >= 3 and random-float 1 <= serosorting
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? true
+      set main-ptnr-sex replace-item ind main-ptnr-sex 2
+    ]
+    
+    ;; if not serosorting, determine whether partner is HET male or IDU male based on proportion in PLWH + non-PLWH
+    ;; determine HIV status by prevalence
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? false
+      set main-ptnr-sex replace-item ind main-ptnr-sex 2
+      if random-float 1 <= item 1 prevalence
+      [set ptnr-infected? replace-item ind ptnr-infected? true]
+    ]
+  ]
+   
+  ;; PLWH is HET-male or IDU-male, partner type is sexual only
+  if sex = 2
+  [
+    ;; if serosorting, determine whether partner is HET-female or IDU-female based on proportion in PLWH
+    ;; HIV status set to positive
+    ifelse stage >= 3 and random-float 1 <= serosorting
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? true
+      ifelse random-float 1 <= 
+             item 0 prevalence * perc-HET-FEM / 
+             (item 0 prevalence * perc-HET-FEM + item 3 prevalence * perc-IDU-FEM)
+      [set main-ptnr-sex replace-item ind main-ptnr-sex 1]
+      [set main-ptnr-sex replace-item ind main-ptnr-sex 4]
+    ]
+    
+    ;; if not serosorting, determine whether partner is HET-female or IDU-female based on proportion in PLWH + non-PLWH
+    ;; determine HIV status by prevalence
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? false
+      ifelse random-float 1 <= perc-HET-FEM / (perc-HET-FEM + perc-IDU-FEM)
+      [
+        ;; partner is HET-female
+        set main-ptnr-sex replace-item ind main-ptnr-sex 1
+        if random-float 1 <= item 0 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+      [
+        ;; partner is IDU-female
+        set main-ptnr-sex replace-item ind main-ptnr-sex 4
+        if random-float 1 <= item 3 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+    ]
+  ]
+  
+  if sex = 5 and item ind main-ptnr-type = 0
+  [
+    ;; if serosorting, HIV status set to positive
+    ifelse stage >= 3 and random-float 1 <= serosorting
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? true
+      set main-ptnr-sex replace-item ind main-ptnr-sex 1
+    ]
+    
+    ;; if not serosorting, determine whether partner is HET-female or IDU-female based on proportion in PLWH + non-PLWH
+    ;; determine HIV status by prevalence
+    [
+      set ptnr-infected? replace-item ind ptnr-infected? false
+      set main-ptnr-sex replace-item ind main-ptnr-sex 1
+      if random-float 1 <= item 0 prevalence
+      [set ptnr-infected? replace-item ind ptnr-infected? true]
+    ]
+  ]
+  
+   
+  ;; PLWH is MSM
+  if sex = 3
+  [     
+    ifelse bi-sexual? = true and random-float 1 <= bisexual-mix
+    [
+      ;; MSM is bisexual and have sex with female, exactly the same as HET male except serosorting is different 
+      ifelse stage >= 3 and random-float 1 <= serosorting
+      [
+        ;; serosorting
+        set ptnr-infected? replace-item ind ptnr-infected? true
+        ifelse random-float 1 <= 
+               item 0 prevalence * perc-HET-FEM / 
+               (item 0 prevalence * perc-HET-FEM + item 3 prevalence * perc-IDU-FEM)
+        [set main-ptnr-sex replace-item ind main-ptnr-sex 1]
+        [set main-ptnr-sex replace-item ind main-ptnr-sex 4]
+      ]
+      [  
+        ;; not serosorting         
+        set ptnr-infected? replace-item ind ptnr-infected? false
+        ifelse random-float 1 <= perc-HET-FEM / (perc-HET-FEM + perc-IDU-FEM)
+        [
+          ;; partner is HET-female
+          set main-ptnr-sex replace-item ind main-ptnr-sex 1
+          if random-float 1 <= item 0 prevalence
+          [set ptnr-infected? replace-item ind ptnr-infected? true]
+        ]
+        [
+          ;; partner is IDU-female
+          set main-ptnr-sex replace-item ind main-ptnr-sex 4
+          if random-float 1 <= item 3 prevalence
+          [set ptnr-infected? replace-item ind ptnr-infected? true]
+        ]
+      ] 
+    ]   
+    
+    ;; MSM has a male partner
+    [
+      ifelse stage >= 3 and random-float 1 <= serosorting
+      [
+        ;; if serosorting, determine whether partner is MSM or IDU-MSM based on proportion in PLWH
+        ;; HIV status set to positive
+        set ptnr-infected? replace-item ind ptnr-infected? true
+        ifelse random-float 1 <= 
+               item 2 prevalence * perc-MSM / 
+               (item 2 prevalence * perc-MSM + item 5 prevalence * perc-IDU-MSM)
+        [set main-ptnr-sex replace-item ind main-ptnr-sex 3]
+        [set main-ptnr-sex replace-item ind main-ptnr-sex 6]
+      ]
+       
+      ;; if not serosorting, determine whether partner is MSM or IDU-MSM based on proportion in PLWH + non-PLWH
+      ;; determine HIV status by prevalence
+      [
+        set ptnr-infected? replace-item ind ptnr-infected? false
+        ifelse random-float 1 <= perc-MSM / (perc-MSM + perc-IDU-MSM)
+        [
+          ;; partner is MSM
+          set main-ptnr-sex replace-item ind main-ptnr-sex 3
+          if random-float 1 <= item 2 prevalence
+          [set ptnr-infected? replace-item ind ptnr-infected? true]
+        ]
+        [
+          ;; partner is IDU-MSM
+          set main-ptnr-sex replace-item ind main-ptnr-sex 6
+          if random-float 1 <= item 5 prevalence
+          [set ptnr-infected? replace-item ind ptnr-infected? true]
+        ]
+      ]
+    ]
+  ]
+    
+    
+  if sex = 6 and item ind main-ptnr-type = 0
+  [     
+    ifelse bi-sexual? = true and random-float 1 <= bisexual-mix
+    [
+      ;; MSM is bisexual and have sex with female, exactly the same as HET male except serosorting is different 
+      ifelse stage >= 3 and random-float 1 <= serosorting
+      [
+        ;; serosorting
+        set ptnr-infected? replace-item ind ptnr-infected? true
+        set main-ptnr-sex replace-item ind main-ptnr-sex 1
+      ]
+      [  
+        ;; not serosorting         
+        set ptnr-infected? replace-item ind ptnr-infected? false
+        set main-ptnr-sex replace-item ind main-ptnr-sex 1
+        if random-float 1 <= item 0 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+    ]
+    
+    ;; MSM has a male partner
+    [
+      ifelse stage >= 3 and random-float 1 <= serosorting
+      [
+        ;; if serosorting, HIV status set to positive
+        set ptnr-infected? replace-item ind ptnr-infected? true
+        set main-ptnr-sex replace-item ind main-ptnr-sex 3
+      ]
+       
+      ;; if not serosorting, determine whether partner is MSM or IDU-MSM based on proportion in PLWH + non-PLWH
+      ;; determine HIV status by prevalence
+      [
+        set ptnr-infected? replace-item ind ptnr-infected? false
+        set main-ptnr-sex replace-item ind main-ptnr-sex 3
+        if random-float 1 <= item 2 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+    ]
+  ]    
+   
+  ;; PLWH is PWID and partner type is needle-sharing only
+  ;; partner sex/risk group is determined by IDU-mixing
+  if item ind main-ptnr-type = 1
+  [
+    if sex <= 3
+    [print "Error: non-PWID has needle-sharing partners"]
+    
+    let randnum random-float 1
+    ifelse item 0 (item (sex - 4) IDU-sharing-ptnr-mixing) >= randnum
+    [set main-ptnr-sex replace-item ind main-ptnr-sex 4]
+    [
+      ifelse item 0 (item (sex - 4) IDU-sharing-ptnr-mixing) + item 1 (item (sex - 4) IDU-sharing-ptnr-mixing) >= randnum
+      [set main-ptnr-sex replace-item ind main-ptnr-sex 5]
+      [set main-ptnr-sex replace-item ind main-ptnr-sex 6]
+    ]
+  ]
+   
+  ;; partner type is both sexual and needle-sharing    
+  if item ind main-ptnr-type = 2
+  [
+    if sex <= 3
+    [print "Error: non-PWID has needle-sharing partners"]
+   
+    ;; PLWH is IDU-female
+    if sex = 4
+    [                 
+      set main-ptnr-sex replace-item ind main-ptnr-sex 5 ; partner has to be IDU-male
+      ifelse stage >= 3 and random-float 1 <= serosorting
+      [
+        ;; serosorting, HIV status of partner set to positive
+        set ptnr-infected? replace-item ind ptnr-infected? true]
+      [
+        ;; not serosorting, HIV status of partner determine by prevalence of IDU-male
+        set ptnr-infected? replace-item ind ptnr-infected? false
+        if random-float 1 <= item 4 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+    ]
+    
+    ;; PLWH is IDU-male
+    if sex = 5
+    [                  
+      set main-ptnr-sex replace-item ind main-ptnr-sex 4 ; partner has to be IDU-female
+      ifelse stage >= 3 and random-float 1 <= serosorting
+      [
+        ;; serosorting, set HIV status of partnerto positive
+        set ptnr-infected? replace-item ind ptnr-infected? true]
+      [
+        ;; not serosorting, HIV status of parnter determine by prevalence of IDU-female
+        set ptnr-infected? replace-item ind ptnr-infected? false
+        if random-float 1 <= item 3 prevalence
+        [set ptnr-infected? replace-item ind ptnr-infected? true]
+      ]
+    ]
+     
+    ;; PLWH is IDU-MSM
+    if sex = 6
+    [
+      ;; partner can be either IDU-female or IDU-MSM   
+      ifelse bi-sexual? = true and random-float 1 <= bisexual-mix
+      [
+        ;; if have sex with female, parter sex is IDU-female
+        set main-ptnr-sex replace-item ind main-ptnr-sex 4
+        ifelse stage >= 3 and random-float 1 <= serosorting
+        [
+          ;; serosorting, partner HIV status set to positive
+          set ptnr-infected? replace-item ind ptnr-infected? true]
+        [            
+          ;; not serosorting, partner HIV status determined by IDU-female prevalence
+          set ptnr-infected? replace-item ind ptnr-infected? false
+          if random-float 1 <= item 3 prevalence
+          [set ptnr-infected? replace-item ind ptnr-infected? true]
+        ]
+      ]
+      [
+        ;; if partner is male, partner sex is IDU-MSM
+        set main-ptnr-sex replace-item ind main-ptnr-sex 6        
+        ifelse stage >= 3 and random-float 1 <= serosorting
+        [
+          ;; serosorting, set HIV status to positive
+          set ptnr-infected? replace-item ind ptnr-infected? true]
+        [
+          ;; not serosorting, partner HIV status is determined by prevalence of IDU-MSM
+          set ptnr-infected? replace-item ind ptnr-infected? false
+          if random-float 1 <= item 5 prevalence
+          [set ptnr-infected? replace-item ind ptnr-infected? true]
+        ]
+      ]
+    ]  
+  ]
+  
+  ;; determine whether partners are needle-sharing 
+  if item ind main-ptnr-sex > 3 and item ind main-ptnr-type > 0
+  [set main-ptnr-sharing? replace-item ind main-ptnr-sharing? true]
+  
+end
+
+;; update main partnership
+to update-main-ptnr
+  
+  ;; determine if change in partnership
+  let ind 0
+  while [ind < length (ptnr-array)]
+  [
+    if item ind ptnr-counter >= item ind ptnr-length
+    [
+      ;;change ptnr, determine partner type
+      let randnum 0      
+      ifelse sex > 3 and needle-sharing? = true
+      [
+        ;; if PLWH is needle-sharing, main partner type can be any
+        set randnum random-float 1
+          
+        ;; using IDU-ptnr-mix to determine partner type
+        ifelse randnum <= item 0 (item (sex - 4) IDU-ptnr-type-mixing)
+        [set main-ptnr-type replace-item ind main-ptnr-type 0]
+        [
+          ifelse randnum <= item 0 (item (sex - 4) IDU-ptnr-type-mixing) + item 1 (item (sex - 4) IDU-ptnr-type-mixing)
+          [set main-ptnr-type replace-item ind main-ptnr-type 1]
+          [set main-ptnr-type replace-item ind main-ptnr-type 2]
+        ]       
+      ]
+      [set main-ptnr-type replace-item ind main-ptnr-type 0]
+      
+      set randnum random-float 1
+      ifelse ind = 0 and randnum > no-ptnr and num-ptnr > 0 and item ind main-ptnr-type != 1
+      [
+        ;; start a new relationship if first ptnr ends 
+        ;; if concurrent ptnr ends, do nothing as concurrency is managed at population level
+        ;; set length of new ptnr
+        set ptnr-array replace-item ind ptnr-array 1       
+        set counter-ptnr replace-item ind counter-ptnr (item ind counter-ptnr + 1)
+        set ptnr-length replace-item ind ptnr-length ((- ln (random-float 1) / (num-ptnr)) * time-unit)
+      ]
+      [
+        ifelse ind = 0 and randnum > no-ptnr and num-IDU-ptnr > 0 and item ind main-ptnr-type = 1
+        [
+          set ptnr-array replace-item ind ptnr-array 1       
+          set counter-ptnr replace-item ind counter-ptnr (item ind counter-ptnr + 1)
+          set ptnr-length replace-item ind ptnr-length ((- ln (random-float 1) / (num-IDU-ptnr)) * time-unit)
+        ]
+        [
+          set ptnr-array replace-item ind ptnr-array 0
+          set ptnr-length replace-item ind ptnr-length 0
+          set ptnr-infected? replace-item ind ptnr-infected? false
+          set main-ptnr-sex replace-item ind main-ptnr-sex 0
+          set main-ptnr-type replace-item ind main-ptnr-type 0
+          set main-ptnr-sharing? replace-item ind main-ptnr-sharing? false        
+          if ind = 1
+          [set in-concurrency 0]
+        ]
+      ]
+      
+      ;; reset partner counter
+      set ptnr-counter replace-item ind ptnr-counter 0
+      
+      ;; determine partner sex/risk group and HIV status 
+      if item ind ptnr-array = 1      
+      [assign-main-ptnr ind]
+    ]
+    set ind ind + 1  
+  ]
+  
+end
+
+;; maintaing proportion of individuals in concurrent partnerships
+to manage-concurrency [i]
+  
+  ;; total people with concurrent partners
+  let total-concurrent (item i total-people-sex) with [sum counter-ptnr > 1]
+  ;; total people with only one partner
+  let total-avail (item i total-people-sex) with [sum counter-ptnr = 1 and num-ptnr > 0]
+  let val floor (item i prop-concurrency * count (item i total-people-sex) - count total-concurrent)
+  let temp-avail total-avail
+  let temp-num-avail count temp-avail
+  if val > temp-num-avail
+  [set val temp-num-avail]
+  if val > 0
+  [
+    ask n-of val temp-avail
+    [
+      set in-concurrency 1   
+      ;; assign time as exponential distributed with rate concurrency-lambda
+      ;; even if the partner is assigned as the first main partner
+      set ptnr-length replace-item 1 ptnr-length ((- ln (random-float 1) / (item i concurrency-lambda)) * time-unit)
+      set ptnr-array replace-item 1 ptnr-array 1
+      set counter-ptnr replace-item 1 counter-ptnr (item 1 counter-ptnr + 1)
+      ; set time item 0 ptnr-length + ((- ln (random-float 1) /  (num-ptnr)) *  time-unit) 
+      ; set ptnr-length replace-item (0) ptnr-length time
+      ;; resetting counter for length of partnership
+      set ptnr-counter replace-item 1 ptnr-counter 0
+      ;; assigning partnership 
+      assign-main-ptnr 1
+    ]
+  ]  
+  
+end

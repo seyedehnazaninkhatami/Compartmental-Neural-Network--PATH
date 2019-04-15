@@ -1,0 +1,149 @@
+;; generate transmission from partners
+;; trans-type = 1 first main partner
+;; trans-type = 2 second main partner
+;; trans-type = 3 casual sexual partner
+;; trans-type = 4 casual needle-sharing partner
+;; ptnr-sex = 1, 2, 3, 4, 5, 6 sex/risk group of newly-infected
+;; ptnr-type = 1 sexual only partners
+;; ptnr-type = 2 needle-sharing only partners
+;; ptnr-type = 3 both sexual and needle-sharing partners
+;; ptnr-sharing? = true if the newly infected is needle-sharing
+
+to initialize-transmissions [trans-type sex-of-newly-infected ptnr-type sharing-status-of-newly-infected]
+    
+  ;; inherit partnership attributes
+  let sex-of-person-who-infect sex
+  let inherited-ptnr-length 0
+  let inherited-ptnr-counter 0
+  let sharing-status-of-person-who-infect needle-sharing?
+  
+  ;; inherit remaining partner total length and remaining length if main partner transmit
+  if trans-type = 1 or trans-type = 2
+  [
+    set inherited-ptnr-length item (trans-type - 1) ptnr-length
+    set inherited-ptnr-counter item (trans-type - 1) ptnr-counter
+  ]
+  
+  ;; transmits to a person 3 years younger or older  
+  ;; later the age of newly infected will be replaced by procedures in manage-age-group
+  let p-age 70 ;(age - 3) + random 6  
+;  ifelse trans-type <= 3
+;  [
+;    if age <= 19
+;    [set p-age (age - 1) + random 2] 
+;    if p-age < 13
+;    [set p-age 13] 
+;    if p-age > 70
+;    [set p-age 70] 
+;  ]
+;  [
+;    ;; for IDU casual partners, no particular preferences on ages
+;    set p-age 13 + random 57
+;  ]
+  
+  ;; bring in one uninfected person and assign corresponding attributes
+  ask one-of people with [infected? = false]
+  [
+    ;set xcor 10
+    ;set ycor 10
+    set age round p-age
+    set sex sex-of-newly-infected
+    set needle-sharing? sharing-status-of-newly-infected
+    
+    set-infected-variables
+      
+    if sex = 0 
+    [print "Error: sex can not be 0"]
+      
+    set infected? true
+    set num-trans-One 0
+    set num-trans-Two 0
+    set num-trans-Casual 0
+    set num-trans-Needle 0
+    
+    ;; assign partnerships
+    set-num-ptnr
+    set-sexual-behavior
+    set-initial-ptnr 
+    set index? false
+    ;set-next-test
+    
+    ;; newly infected persons are in acute phase
+    set stage 1
+      
+    ;; replace the partnership information of one of the partners with inherited partner information
+    if trans-type <= 2 ;; ptnr-num = 1 if main ptnr; 2 if concurrent ptnr; 3 if casual ptnr 
+    [
+      set ptnr-length replace-item (trans-type - 1) ptnr-length inherited-ptnr-length
+      set ptnr-counter replace-item (trans-type  - 1) ptnr-counter inherited-ptnr-counter
+      set ptnr-infected? replace-item (trans-type - 1) ptnr-infected? true
+      set ptnr-array replace-item (trans-type - 1) ptnr-array 1
+      set main-ptnr-type replace-item (trans-type - 1) main-ptnr-type ptnr-type
+      set main-ptnr-sex replace-item (trans-type - 1) main-ptnr-sex sex-of-person-who-infect
+      set main-ptnr-sharing? replace-item (trans-type - 1) main-ptnr-sharing? sharing-status-of-person-who-infect  
+    ]
+      
+    if trans-type = 2 
+    [set in-concurrency 1]
+      
+    ;; Modleing duplicate infection      
+    ;; if the current newly infected ptnr had a concurrent ptnr who was also positive 
+    ;; then since the current person is infected, now the concurrent ptnr cannot infect to the same partner again
+    ;; so we find that concurrent ptnr and set his/her ptnr as positive
+    ;; if concurrent ptnr exists but not positive the transmission is handled in the procedure ' setup-trans-initial-ppl-HET-MSM'
+    
+    ;; if main, casual-sexual, or casual-IDU partner is infected, check concurrent partner    
+    if trans-type > 1 and item 0 ptnr-array = 1 and item 0 ptnr-infected? = true
+    [manage-duplicate-infection trans-type p-age 0 item 0 main-ptnr-sharing?]
+    ;; if concurrent, casual-sexual, or casual-IDU partner is infected, check main partner
+    if trans-type != 2 and item 1 ptnr-array = 1 and item 1 ptnr-infected? = true
+    [manage-duplicate-infection trans-type p-age 1 item 1 main-ptnr-sharing?]
+  ]
+  
+end
+
+;; Managing concurrency for main partners
+;; Randomly select another person who has a negative partner with matching age, sex, and needle-sharing status
+;; and set HIV status to positive
+to manage-duplicate-infection [trans-type p-age other-ptnr sharing-status]
+  
+  let p-sex sex
+  let nDup 1
+  ifelse sharing-status = true
+  [set nDup 2 + random (max-IDU-concurrent - 1)]
+  [set nDup 1]
+  
+  let pool people with 
+  [
+    infected? = true and 
+    item other-ptnr ptnr-array = 1 and 
+    item other-ptnr ptnr-infected? = false and
+    item other-ptnr main-ptnr-sharing? = sharing-status and
+    age <= p-age + 10 and 
+    age >= p-age - 10 and 
+    (
+      (p-sex = 1 and (sex = 2 or sex = 5) and item other-ptnr main-ptnr-type = 0) or
+      (p-sex = 2 and (sex = 1 or sex = 4) and item other-ptnr main-ptnr-type = 0) or
+      (p-sex = 3 and (sex = 1 or sex = 4 or sex = 3 or sex = 6) and item other-ptnr main-ptnr-type = 0) or
+      (p-sex = 4 and (sex = 2 or sex = 5) and item other-ptnr main-ptnr-type = 0) or
+      (p-sex = 4 and sex >= 4 and item other-ptnr main-ptnr-type = 1) or
+      (p-sex = 4 and sex = 5 and item other-ptnr main-ptnr-type = 2) or
+      (p-sex = 5 and (sex = 1 or sex = 4) and item other-ptnr main-ptnr-type = 0) or
+      (p-sex = 5 and sex >= 4 and item other-ptnr main-ptnr-type = 1) or
+      (p-sex = 5 and sex = 4 and item other-ptnr main-ptnr-type = 2) or
+      (p-sex = 6 and (sex = 1 or sex = 4 or sex = 3 or sex = 6) and item other-ptnr main-ptnr-type = 0) or
+      (p-sex = 6 and sex >= 4 and item other-ptnr main-ptnr-type = 1) or
+      (p-sex = 6 and (sex = 4 or sex = 6) and item other-ptnr main-ptnr-type = 2)
+    )
+  ]
+  
+  if count pool < nDup + 1
+  [set nDup count pool - 1]
+  
+  if nDup > 0
+  [
+    let individual n-of nDup pool
+    ask individual [set ptnr-infected? replace-item other-ptnr ptnr-infected? true]
+  ]
+  
+end

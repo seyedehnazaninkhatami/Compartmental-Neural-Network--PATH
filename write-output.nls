@@ -1,0 +1,1995 @@
+to initialize-output 
+ 
+  set tempRun 0 
+  set sim-dry-run 101 ;; for behavior 
+  set maxYear num-year-trans - dry-run + 1
+  set maxTicks sim-dry-run + num-year-trans * time-unit
+  set t-start sim-dry-run + time-unit * dry-run
+  set start-year 2006
+  ;set calibration-year 2015
+  ;set tick-start t-start + (calibration-year - start-year + 1) * time-unit
+  set num-sex 6 
+  set num-age 5
+  set num-stage 6
+  set num-ptnr-range 5
+  set num-CD4 5
+  set length-of-linked-to-care 5  
+  set length-of-ptnr-type 7
+  set zAlpha 1.96
+  
+;  let mat matrix:make-constant maxYear maxRun 0
+;  
+;  set medianNumPtnrs matrix:copy mat
+;  set minNumPtnrs matrix:copy mat
+;  set maxNumPtnrs matrix:copy mat
+;  set meanNumPtnrs matrix:copy mat
+;  set medianNumPtnrsMSM matrix:copy mat
+;  set minNumPtnrsMSM matrix:copy mat
+;  set maxNumPtnrsMSM matrix:copy mat
+;  set meanNumPtnrsMSM matrix:copy mat
+;  set medianNumPtnrsHET matrix:copy mat
+;  set minNumPtnrsHET matrix:copy mat
+;  set maxNumPtnrsHET matrix:copy mat
+;  set meanNumPtnrsHET matrix:copy mat
+;  set totalPopulation matrix:copy mat
+;  set totalNewInfection matrix:copy mat
+;  set totalNewDeath matrix:copy mat
+;  set totalNewDeathLife matrix:copy mat
+;  set totalNewDeathCD4 matrix:copy mat
+;  set totalNewDeathHIV matrix:copy mat
+;  
+;  set overallTransRate matrix:copy mat
+;  
+;  set totalCost matrix:copy mat
+;  set utilizationCost matrix:copy mat
+;  set regimenCost matrix:copy mat
+;  set OICost matrix:copy mat
+;  set careServiceCost matrix:copy mat
+;  set testingCost matrix:copy mat
+;  
+;  set countCD4Diag matrix:copy mat
+;  set meanCD4Diag matrix:copy mat
+;  set medianCD4Diag matrix:copy mat
+;  set countCD4DiagMSM matrix:copy mat
+;  set meanCD4DiagMSM matrix:copy mat
+;  set medianCD4DiagMSM matrix:copy mat
+;  set countCD4DiagHET matrix:copy mat
+;  set meanCD4DiagHET matrix:copy mat
+;  set medianCD4DiagHET matrix:copy mat
+;  
+;  set countCD4ART matrix:copy mat
+;  set meanCD4ART matrix:copy mat
+;  set medianCD4ART matrix:copy mat
+;  set countCD4ARTMSM matrix:copy mat
+;  set meanCD4ARTMSM matrix:copy mat
+;  set medianCD4ARTMSM matrix:copy mat
+;  set countCD4ARTHET matrix:copy mat
+;  set meanCD4ARTHET matrix:copy mat
+;  set medianCD4ARTHET matrix:copy mat
+;  
+;  ;; sex
+;  set mat matrix:make-constant maxYear (maxRun * num-sex) 0
+;  
+;  set numBySex matrix:copy mat
+;  set percBySex matrix:copy mat
+;  
+;  set numNewInfBySex matrix:copy mat
+;  set numNewInfViaSex matrix:copy mat
+;  set percNewInfBySex matrix:copy mat
+;  set percNewInfViaSex matrix:copy mat
+;  set personYearsBySex matrix:copy mat
+;  set transRateBySex matrix:copy mat
+;  
+;  set mat matrix:make-constant maxYear (maxRun * num-age) 0
+;  
+;  set numByAge matrix:copy mat
+;  set percByAge matrix:copy mat
+;  
+;  set numNewInfByAge matrix:copy mat 
+;  set numNewInfViaAge matrix:copy mat
+;  set percNewInfByAge matrix:copy mat
+;  set percNewInfViaAge matrix:copy mat
+;  set personYearsByAge matrix:copy mat
+;  set transRateByAge matrix:copy mat
+;  
+;  set mat matrix:make-constant maxYear (maxRun * num-ptnr-range) 0
+;  
+;  set numByPtnrs matrix:copy mat
+;  set percByPtnrs matrix:copy mat
+;  set numByMainPtnrs matrix:copy mat
+;  set percByMainPtnrs matrix:copy mat
+;  set numByCasualSexualPtnrs matrix:copy mat
+;  set percByCasualSexualPtnrs matrix:copy mat
+;  set numByCasualIDUPtnrs matrix:copy mat
+;  set percByCasualIDUPtnrs matrix:copy mat
+;  set numByPtnrsMSM matrix:copy mat
+;  set percByPtnrsMSM matrix:copy mat
+;  set numByPtnrsHET matrix:copy mat
+;  set percByPtnrsHET matrix:copy mat
+;  set percByPtnrsMSM1 matrix:copy mat
+;
+;  set percByMain matrix:copy mat
+;  set percByConcrt matrix:copy mat
+;  set percByCasual matrix:copy mat
+;  set percByMainMSM matrix:copy mat
+;  set percByConcrtMSM matrix:copy mat
+;  set percByCasualMSM matrix:copy mat
+;  set percByMainHET matrix:copy mat
+;  set percByConcrtHET matrix:copy mat
+;  set percByCasualHET matrix:copy mat
+;  
+;  set mat matrix:make-constant maxYear (maxRun * length-of-linked-to-care) 0
+;  
+;  set linkedToCare matrix:copy mat
+;  
+;  set mat matrix:make-constant maxYear (maxRun * num-stage) 0
+;  
+;  set numPtnrsByCareCont matrix:copy mat
+;  set numPtnrsByCareContMSM matrix:copy mat
+;  set numPtnrsByCareContHET matrix:copy mat
+;  
+;  set numByStage matrix:copy mat
+;  set percByStage matrix:copy mat  
+;  set numNewInfViaStage matrix:copy mat
+;  set percNewInfViaStage matrix:copy mat
+;  set personYearsByStage matrix:copy mat
+;  set transRateByStage matrix:copy mat
+;  
+;  set mat matrix:make-constant maxYear (maxRun * length-of-ptnr-type) 0
+;  
+;  set numNewInfByPtnrType matrix:copy mat
+;  
+;  set mat matrix:make-constant maxYear (maxRun * num-CD4) 0 
+;  
+;  set numNewInfByCD4 matrix:copy mat
+;  set percNewInfByCD4 matrix:copy mat
+;  set numMSMByCD4 matrix:copy mat
+;  set percMSMByCD4 matrix:copy mat
+;  set numHETByCD4 matrix:copy mat
+;  set percHETByCD4 matrix:copy mat
+;  
+;  set acuteByCD4 matrix:copy mat
+;  set nonAcuteByCD4 matrix:copy mat
+;  set awareByCD4 matrix:copy mat
+;  set inCareByCD4 matrix:copy mat
+;  set onARTByCD4 matrix:copy mat
+;  set reboundByCD4 matrix:copy mat
+;  set salvageByCD4 matrix:copy mat
+;  set VLSByCD4 matrix:copy mat
+;  
+;  set rowSum matrix:make-constant maxRun 1 (1 / maxRun)
+;
+;  set rowSum1 matrix:make-constant (maxRun * num-sex) num-sex 0
+;  let i 0
+;  let j 0
+;  while [i < num-sex]
+;  [set j 0
+;    while [j < maxRun]
+;    [matrix:set rowSum1 (j * num-sex + i) i 1
+;      set j j + 1
+;    ]
+;    set i i + 1
+;  ]
+;
+;  set rowSum2 matrix:make-constant (maxRun * length-of-ptnr-distribution) length-of-ptnr-distribution 0
+;  set i 0
+;  while [i < length-of-ptnr-distribution]
+;  [set j 0
+;    while [j < maxRun]
+;    [matrix:set rowSum2 (j * length-of-ptnr-distribution + i) i 1
+;      set j j + 1
+;    ]
+;    set i i + 1
+;  ]
+;
+;  set rowSum3 matrix:make-constant (maxRun * num-stage) num-stage 0
+;  set i 0
+;  while [i < num-stage]
+;  [set j 0
+;    while [j < maxRun]
+;    [matrix:set rowSum3 (j * num-stage + i) i 1
+;      set j j + 1
+;    ]
+;    set i i + 1
+;  ]
+;
+;  set rowSum4 matrix:make-constant (maxRun * num-age) num-age 0
+;  set i 0
+;  while [i < num-age]
+;  [set j 0
+;    while [j < maxRun]
+;    [matrix:set rowSum4 (j * num-age + i) i 1
+;      set j j + 1
+;    ]
+;    set i i + 1
+;  ]
+;
+;  set rowSum5 matrix:make-constant (maxRun * length-of-linked-to-care) length-of-linked-to-care 0
+;  set i 0
+;  while [i < length-of-linked-to-care]
+;  [set j 0
+;    while [j < maxRun]
+;    [matrix:set rowSum5 (j * length-of-linked-to-care + i) i 1
+;      set j j + 1
+;    ]
+;    set i i + 1
+;  ]
+;
+;  set rowSum6 matrix:make-constant (maxRun * length-of-ptnr-type) length-of-ptnr-type 0
+;  set i 0
+;  while [i < length-of-ptnr-type]
+;  [set j 0
+;    while [j < maxRun]
+;    [matrix:set rowSum6 (j * length-of-ptnr-type + i) i 1
+;      set j j + 1
+;    ]
+;    set i i + 1
+;  ]
+;
+;  set rowSum7 matrix:make-constant (maxRun * num-CD4) num-CD4 0
+;  set i 0
+;  while [i < num-CD4]
+;  [set j 0
+;    while [j < maxRun]
+;    [matrix:set rowSum7 (j * num-CD4 + i) i 1
+;      set j j + 1
+;    ]
+;    set i i + 1
+;  ]
+;  
+end
+
+;to write-sensitivity-analysis-header
+;  
+;  file-open "results-sensitivity-analysis.csv"  
+;  
+;  file-write "Sensitive variable name"  
+;  file-write "Change from base value"
+;  file-write "Year"  
+;  file-write "Transmission rate mean"  
+;  file-write "Transmission rate standard deviation"  
+;  file-write "Transmission rate confidence interval lower bound"
+;  file-write "Transmission rate confidence interval upper bound"
+;  
+;  file-print ""
+;  
+;  file-close
+;  
+;end
+;
+;to write-cohort-header
+;  
+;  
+;  file-open "results-cohort-info.csv"  
+;  
+;  file-write "2015 incidence"  
+;  file-write "% dead by 2075"
+;  file-write "Avg time until diagnosed"  
+;  file-write "Avg age at infection among dead"  
+;  file-write "Avg life with infection among dead"
+;  file-write "Avg life years 2015-2075"
+;  file-write "Avg QALY 2015-2075"
+;  repeat 20
+;  [file-write "alive"]
+;  repeat 20
+;  [file-write "VLS"]
+;  repeat 20
+;  [file-write "avg-VLS"]
+;  repeat 20
+;  [file-write "trans"]
+;  repeat 20
+;  [file-write "avg-trans"]
+;  
+;  file-print ""
+;  
+;  file-close
+;  
+;end
+;
+;to write-cohort-info
+;  
+;  file-open "results-cohort-info.csv"
+;  
+;  file-write count cohort
+;  file-write count cohort with [dead = 1] / count cohort
+;  let a mean [time-Diag] of cohort with [time-Diag > 0]
+;  let b mean [trans-time] of cohort with [time-Diag > 0]
+;  file-write ((a - b) / time-unit)
+;  file-write mean [age-at-infection] of cohort
+;  file-write mean [life-with-infection] of cohort with [dead = 1] 
+;  file-write (life-years / count cohort)
+;  file-write (QALY-accumulate / count cohort)
+;  let i 0
+;  while [i < 20]
+;  [
+;    file-write item i all-accumulate
+;    set i i + 1
+;  ]
+;  set i 0
+;  while [i < 20]
+;  [
+;    file-write item i VLS-accumulate
+;    set i i + 1
+;  ]
+;  set i 0
+;  while [i < 20]
+;  [
+;    file-write item i avg-VLS
+;    set i i + 1
+;  ]
+;  set i 0
+;  while [i < 20]
+;  [
+;    file-write item i num-cohort-trans
+;    set i i + 1
+;  ]
+;  set i 0
+;  while [i < 20]
+;  [
+;    file-write item i avg-num-trans
+;    set i i + 1
+;  ]
+;
+;  file-print ""
+;  set VLS-accumulate n-values 20 [0]
+;  set QALY-accumulate 0
+;  set life-years 0
+;  set VLS-accumulate n-values 20 [0]
+;  set all-accumulate n-values 20 [0]
+;  set num-cohort-trans n-values 20 [0]
+;
+;  file-close
+;  
+;end
+;
+;to write-sensitivity-analysis [i j]
+;   
+;  file-open "results-sensitivity-analysis.csv"
+;
+;  let t 0
+;  let k 0
+;  
+;  while [t < maxYear]
+;  [
+;    file-write item i sensitive-var-name
+;  
+;    file-write table:get sensitive-var-table (item i sensitive-var-name)
+;    
+;    file-write t   
+;    
+;    file-write mean (matrix:get-row overallTransRate t)
+;    ifelse maxRun > 1
+;    [
+;      file-write standard-deviation (matrix:get-row overallTransRate t)
+;      file-write mean (matrix:get-row overallTransRate t) - zAlpha * standard-deviation (matrix:get-row overallTransRate t) / sqrt(maxRun)
+;      file-write mean (matrix:get-row overallTransRate t) + zAlpha * standard-deviation (matrix:get-row overallTransRate t) / sqrt(maxRun) 
+;    ]
+;    [
+;      file-write 0
+;      file-write mean (matrix:get-row overallTransRate t)
+;      file-write mean (matrix:get-row overallTransRate t)
+;    ]
+;    
+;    file-print ""
+;    
+;    set t t + 1
+;  ] 
+;  
+;  file-close
+;  
+;end
+;
+;;; generarte PLWH results
+;to generate-PLWH [year]
+;  
+;;  let MSM-pop count people with [infected? = true and sex = 3 and dead = 0]
+;;  let HET-pop count people with [infected? = true and sex <= 2 and dead = 0]
+;  
+;  ;total # by sex
+;  let i 0
+;  while [i < num-sex]
+;  [
+;    matrix:set numBySex (year) (tempRun * num-sex + i) (count item i total-people-sex)
+;    set i i + 1
+;  ]
+; 
+;  ;% of PLWH by sex
+;  if total-pop > 0
+;  [
+;    set i 0
+;    while [i < num-sex] 
+;    [
+;      matrix:set percBySex (year) (tempRun * num-sex + i) (count item i total-people-sex / total-pop)
+;      set i i + 1
+;    ]
+;  ]
+;
+;  ;# of PLWH by care continuum
+;  set i 0
+;  while [i < num-stage]
+;  [
+;    matrix:set numByStage (year) (tempRun * num-stage + i) (count item i total-people-stage)
+;    set i i + 1
+;  ]
+;
+;  ;% of PLWH by care continuum
+;  if total-pop > 0
+;  [
+;    set i 0
+;    while [i < num-stage]
+;    [
+;      matrix:set percByStage (year) (tempRun * num-stage + i) (count item i total-people-stage / total-pop)
+;      set i i + 1
+;    ]
+;  ]
+;
+;  ;# of PLWH by age (13-24-34-44-55)
+;  set i 0
+;  while [i < num-age]
+;  [
+;    matrix:set numByAge (year) (tempRun * num-age + i) (count item i total-people-age)
+;    set i i + 1
+;  ]
+;  
+;  ;% of PLWH by age (13-24-34-44-55)
+;  if total-pop > 0
+;  [
+;    set i 0
+;    while [i < num-age]
+;    [
+;      matrix:set percByAge (year) (tempRun * num-age + i) (count item i total-people-age / total-pop)
+;      set i i + 1
+;    ]
+;  ]
+;  
+;  matrix:set totalPopulation (year) tempRun total-pop
+;
+;  ;Total costs. Multipliying by time-unit to convert to annual cost assuming approximately same each year
+;;  matrix:set totalCost (year) tempRun sum[costs] of people with [infected? = true] * time-unit
+;;  matrix:set utilizationCost (year) tempRun sum[util-cost] of people with [infected? = true] * time-unit
+;;  matrix:set regimenCost (year) tempRun sum[regimen-cost-quarter] of people with [infected? = true] * time-unit
+;;  matrix:set OICost (year) tempRun sum[oi-cost-quarter] of people with [infected? = true] * time-unit
+;;  matrix:set careServiceCost (year) tempRun sum[care-service-cost] of people with [infected? = true] * time-unit
+;;  matrix:set testingCost (year) tempRun sum[test-cost] of people with [infected? = true] * time-unit
+;
+;  ;Linked to care for all
+;;  let ub [3 6 12 24 1200]
+;;  set i 0
+;;  while [i < length ub]
+;;  [
+;;    matrix:set linkedToCare (year) (tempRun * (length ub) + i) (count people with [infected? = true and next-test > 0 and linked-to-care? = true and (quarter-linked-care - next-test) <= item i ub * time-unit / 12]) ;; within X months of diagnosis
+;;    set i i + 1
+;;    ]
+;
+;  ;file-write "Linked to care for newly infected in all years"
+;  ;file-write count people with [infected? = true and index-patient? = false and linked-to-care? = true and dead = 0]
+;  ;file-write count people with [infected? = true and index-patient? = false and linked-to-care? = true and dead = 0 and stage = 3];; proportion every year who dropped out of care
+;  ;file-write count people with [infected? = true and index-patient? = false and linked-to-care? = true and dead = 1]
+;  ;file-write count people with [infected? = true and index-patient? = false and linked-to-care? = true and dead = 1 and in-care? = false];; individuals who dropped out of care -may or may not have entered back
+;  ;file-write count people with [infected? = true and index-patient? = false and linked-to-care? = true and quarter-ART-start > 0 and dead = 1]
+;  ;file-write count people with [infected? = true and index-patient? = false and linked-to-care? = true and quarter-ART-start > 0 and retention-in-ART = 1 and dead = 1]
+;
+;  ;file-write "Sex acts"
+;  ;file-write numActsCasualMSM
+;  ;file-write numActsMainMSM
+;  ;file-write numActsConMSM
+;  ;file-write numActsMainHET
+;  ;file-write numActsConHET
+;
+;  ;file-write "Number of acts table"
+;  ;set i  0
+;  ;while [i < 6]
+;  ;[
+;  ;  file-write item i numACTStable3 ;
+;  ;  set i i + 1
+;  ;  ]
+;  ;set i  0
+;  ;while [i < 6]
+;  ;[
+;  ;  file-write item i numTranstable3 ;
+;  ;  set i i + 1
+;  ;  ]
+;  ;
+;
+;  ;file-print ""
+;
+;  ;file-close
+;
+;end
+;
+;;; write PLWH results header
+;to write-PLWH-header
+;  
+;  if goal = 1 [file-open "results-PLWH-one.csv"]
+;  if goal = 2 [file-open "results-PLWH-two.csv"]
+;  if goal = 3 [file-open "results-PLWH-three.csv"]
+;  if goal = 4 [file-open "results-PLWH-four.csv"]
+;  if goal = 5 [file-open "results-PLWH-five.csv"]
+;   
+;  file-write "Year"
+;  
+;  file-write ""
+;  file-write "Total pop mean"
+;  file-write "Total pop std"
+;  file-write "Total pop LB"
+;  file-write "Total pop UB"
+;
+;  repeat 8
+;  [
+;    file-write ""
+;    file-write "HEF"
+;    file-write "HEM"
+;    file-write "MSM"
+;    file-write "IDU-HEF"
+;    file-write "IDU-HEM"
+;    file-write "IDU-MSM"
+;  ]
+;  
+;  repeat 8
+;  [
+;    file-write ""
+;    file-write "Actue-unaware"
+;    file-write "NonAcute-unaware"
+;    file-write "Aware-no-care"
+;    file-write "In-care-no-ART"
+;    file-write "ART-no-VLS"
+;    file-write "VLS"
+;  ]
+;
+;  repeat 8
+;  [
+;    file-write ""
+;    file-write "<=24"
+;    file-write "25~34"
+;    file-write "35~44"
+;    file-write "45~54"
+;    file-write ">=55"
+;  ]
+;  
+;;  repeat 8
+;;  [file-write ""
+;;    file-write "<=50"
+;;    file-write "51~200"
+;;    file-write "201~350"
+;;    file-write "351~500"
+;;    file-write ">=501"
+;;  ]
+;;
+;;  file-write ""
+;;  file-write "Total"
+;;  file-write "Utilization"
+;;  file-write "ART drug regimen"
+;;  file-write "Opportunistic infection"
+;;  file-write "Care service"
+;;  file-write "Testing"
+;;
+;;  file-write ""
+;;  file-write "3 months"
+;;  file-write "6 months"
+;;  file-write "12 months"
+;;  file-write "24 months"
+;;  file-write "Ever"
+;;
+;;  file-write ""
+;;  file-write "Alive"
+;;  file-write "Alive drop out"
+;;  file-write "Dead"
+;;  file-write "Not in care when dead"
+;;  file-write "ART initiated when dead"
+;;  file-write "ART retention when dead"
+;
+;  file-print ""
+;  
+;  file-close
+;
+;end
+;
+;;; write PLWH results in excel
+;;to write-results-PLWH
+;;
+;;  ;; write PLWH output
+;;  if goal = 1 [file-open "results-PLWH-one.csv"]
+;;  if goal = 2 [file-open "results-PLWH-two.csv"]
+;;  if goal = 3 [file-open "results-PLWH-three.csv"]
+;;  if goal = 4 [file-open "results-PLWH-four.csv"]
+;;  if goal = 5 [file-open "results-PLWH-five.csv"]
+;;  
+;;  let t 0 
+;;  let i 0
+;;  let j 0
+;;  
+;;  let colInd 0
+;;  let tempVecNum 0
+;;  let tempVecPerc 0
+;;  let tempMeanNum 0
+;;  let tempMeanPerc 0
+;;  let tempStdNum 0
+;;  let tempStdPerc 0
+;;  let tempLCINum 0
+;;  let tempLCIPerc 0
+;;  let tempUCINum 0
+;;  let tempUCIPerc 0
+;;  
+;;  set t 0
+;;  while [t < maxYear]
+;;  [    
+;;    file-write t
+;;    ; write plwh by sex
+;;    
+;;    file-write "number of PLWH"
+;;    file-write mean (matrix:get-row totalPopulation t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row totalPopulation t)
+;;      file-write mean (matrix:get-row totalPopulation t) - zAlpha * standard-deviation (matrix:get-row totalPopulation t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row totalPopulation t) + zAlpha * standard-deviation (matrix:get-row totalPopulation t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row totalPopulation t)
+;;      file-write mean (matrix:get-row totalPopulation t)
+;;    ]
+;;    
+;;    set colInd n-values maxRun [x -> x * num-sex]
+;;    set tempVecNum n-values maxRun [0]
+;;    set tempVecPerc n-values maxRun [0]
+;;    
+;;    set tempMeanNum n-values num-sex [0]
+;;    set tempMeanPerc tempMeanNum
+;;    set tempStdNum tempMeanNum
+;;    set tempStdPerc tempMeanNum
+;;    set tempLCINum tempMeanNum
+;;    set tempLCIPerc tempMeanNum
+;;    set tempUCINum tempMeanNum
+;;    set tempUCIPerc tempMeanNum
+;;    
+;;    set i 0
+;;    while [i < num-sex]
+;;    [
+;;      set j 0
+;;      while [j < maxRun]
+;;      [
+;;        set tempVecNum replace-item j tempVecNum (matrix:get numBySex t (item j colInd + i))
+;;        set tempVecPerc replace-item j tempVecPerc (matrix:get percBySex t (item j colInd + i))
+;;        set j j + 1
+;;      ]
+;;      
+;;      set tempMeanNum replace-item i tempMeanNum mean (tempVecNum)
+;;      set tempMeanPerc replace-item i tempmeanPerc mean (tempVecPerc)
+;;      
+;;      if maxRun > 1
+;;      [
+;;        set tempStdNum replace-item i tempStdNum standard-deviation (tempVecNum)
+;;        set tempLCINum replace-item i tempLCINum (item i tempMeanNum - zAlpha * (item i tempStdNum) / sqrt (maxRun))
+;;        set tempUCINum replace-item i tempUCINum (item i tempMeanNum + zAlpha * (item i tempStdNum) / sqrt (maxRun))
+;;        set tempStdPerc replace-item i tempStdPerc standard-deviation (tempVecPerc)
+;;        set tempLCIPerc replace-item i tempLCIPerc (item i tempMeanPerc - zAlpha * (item i tempStdPerc) / sqrt (maxRun))
+;;        set tempUCIPerc replace-item i tempUCIPerc (item i tempMeanPerc + zAlpha * (item i tempStdPerc) / sqrt (maxRun))
+;;      ]     
+;;      
+;;      set i i + 1
+;;      
+;;    ]
+;; 
+;;    file-write "mean # of PLWH by sex"
+;;    file-write tempMeanNum 
+;;    file-write "standard deviation on # of PLWH by sex"
+;;    file-write tempStdNum
+;;    file-write "lower bound confidence interval on # of PLWH by sex"
+;;    file-write tempLCINum
+;;    file-write "upper bound confidence interval on # of PLWH by sex"
+;;    file-write tempUCINum
+;;    
+;;    file-write "mean % of PLWH by sex"
+;;    file-write tempMeanPerc
+;;    file-write "standard deviation on % of PLWH by sex"
+;;    file-write tempStdPerc
+;;    file-write "lower bound confidence interval on % of PLWH by sex"
+;;    file-write tempLCIPerc
+;;    file-write "upper bound confidence interval on % of PLWH by sex"
+;;    file-write tempUCIPerc
+;;    
+;;    ; write PLWH by care continuum
+;;    set colInd n-values maxRun [x -> x * num-stage]
+;;    set tempVecNum n-values maxRun [0]
+;;    set tempVecPerc n-values maxRun [0]
+;;    
+;;    set tempMeanNum n-values num-stage [0]
+;;    set tempMeanPerc tempMeanNum
+;;    set tempStdNum tempMeanNum
+;;    set tempStdPerc tempMeanNum
+;;    set tempLCINum tempMeanNum
+;;    set tempLCIPerc tempMeanNum
+;;    set tempUCINum tempMeanNum
+;;    set tempUCIPerc tempMeanNum
+;;    
+;;    set i 0
+;;    while [i < num-stage]
+;;    [
+;;      set j 0
+;;      while [j < maxRun]
+;;      [
+;;        set tempVecNum replace-item j tempVecNum (matrix:get numByStage t (item j colInd + i))
+;;        set tempVecPerc replace-item j tempVecPerc (matrix:get percByStage t (item j colInd + i))
+;;        set j j + 1
+;;      ]
+;;      
+;;      set tempMeanNum replace-item i tempMeanNum mean (tempVecNum)
+;;      set tempMeanPerc replace-item i tempMeanPerc mean (tempVecPerc)
+;;      
+;;      if maxRun > 1
+;;      [
+;;        set tempStdNum replace-item i tempStdNum standard-deviation (tempVecNum)
+;;        set tempLCINum replace-item i tempLCINum (item i tempMeanNum - zAlpha * (item i tempStdNum) / sqrt (maxRun))
+;;        set tempUCINum replace-item i tempUCINum (item i tempMeanNum + zAlpha * (item i tempStdNum) / sqrt (maxRun))
+;;        set tempStdPerc replace-item i tempStdPerc standard-deviation (tempVecPerc)
+;;        set tempLCIPerc replace-item i tempLCIPerc (item i tempMeanPerc - zAlpha * (item i tempStdPerc) / sqrt (maxRun))
+;;        set tempUCIPerc replace-item i tempUCIPerc (item i tempMeanPerc + zAlpha * (item i tempStdPerc) / sqrt (maxRun))
+;;      ]     
+;;      
+;;      set i i + 1
+;;      
+;;    ]
+;; 
+;;    file-write "mean # of PLWH by care continuum"
+;;    file-write tempMeanNum
+;;    file-write "standard deviation on # of PLWH by care continuum"
+;;    file-write tempStdNum
+;;    file-write "lower bound confidence interval on # of PLWH by care continuum"
+;;    file-write tempLCINum
+;;    file-write "upper bound confidence interval on # of PLWH by care continuum"
+;;    file-write tempUCINum
+;;    
+;;    file-write "mean % of PLWH by care continuum"
+;;    file-write tempMeanPerc
+;;    file-write "standard deviation on % of PLWH by care continuum"
+;;    file-write tempStdPerc
+;;    file-write "lower bound confidence interval on % of PLWH by care continuum"
+;;    file-write tempLCIPerc
+;;    file-write "upper bound confidence interval on % of PLWH by care continuum"
+;;    file-write tempUCIPerc
+;;    
+;;    ; write PLWH by age
+;;    set colInd n-values maxRun [x -> x * num-age]
+;;    set tempVecNum n-values maxRun [0]
+;;    set tempVecPerc n-values maxRun [0]
+;;    
+;;    set tempMeanNum n-values num-age [0]
+;;    set tempMeanPerc tempMeanNum
+;;    set tempStdNum tempMeanNum
+;;    set tempStdPerc tempMeanNum
+;;    set tempLCINum tempMeanNum
+;;    set tempLCIPerc tempMeanNum
+;;    set tempUCINum tempMeanNum
+;;    set tempUCIPerc tempMeanNum
+;;    
+;;    set i 0
+;;    while [i < num-age]
+;;    [
+;;      set j 0
+;;      while [j < maxRun]
+;;      [
+;;        set tempVecNum replace-item j tempVecNum (matrix:get numByAge t (item j colInd + i))
+;;        set tempVecPerc replace-item j tempVecPerc (matrix:get percByAge t (item j colInd + i))
+;;        set j j + 1
+;;      ]
+;;      
+;;      set tempMeanNum replace-item i tempMeanNum mean (tempVecNum)
+;;      set tempMeanPerc replace-item i tempMeanPerc mean (tempVecPerc)
+;;      
+;;      if maxRun > 1
+;;      [
+;;        set tempStdNum replace-item i tempStdNum standard-deviation (tempVecNum)
+;;        set tempLCINum replace-item i tempLCINum (item i tempMeanNum - zAlpha * (item i tempStdNum) / sqrt (maxRun))
+;;        set tempUCINum replace-item i tempUCINum (item i tempMeanNum + zAlpha * (item i tempStdNum) / sqrt (maxRun))
+;;        set tempStdPerc replace-item i tempStdPerc standard-deviation (tempVecPerc)
+;;        set tempLCIPerc replace-item i tempLCIPerc (item i tempMeanPerc - zAlpha * (item i tempStdPerc) / sqrt (maxRun))
+;;        set tempUCIPerc replace-item i tempUCIPerc (item i tempMeanPerc + zAlpha * (item i tempStdPerc) / sqrt (maxRun))
+;;      ]     
+;;      
+;;      set i i + 1
+;;      
+;;    ]
+;; 
+;;    file-write "mean # of PLWH by age"
+;;    file-write tempMeanNum
+;;    file-write "standard deviation on # of PLWH by age"
+;;    file-write tempStdNum
+;;    file-write "lower bound confidence interval on # of PLWH by age"
+;;    file-write tempLCINum
+;;    file-write "upper bound confidence interval on # of PLWH by age"
+;;    file-write tempUCINum
+;;    
+;;    file-write "mean % of PLWH by age"
+;;    file-write tempMeanPerc
+;;    file-write "standard deviation on % of PLWH by age"
+;;    file-write tempStdPerc
+;;    file-write "lower bound confidence interval on % of PLWH by age"
+;;    file-write tempLCIPerc
+;;    file-write "upper bound confidence interval on % of PLWH by age"
+;;    file-write tempUCIPerc
+;;
+;;    set t t + 1
+;;
+;;    file-print ""
+;;
+;;    ]
+;;
+;;  file-close
+;;
+;;end
+;
+;;; generate new infection results
+;;to generate-new-infections [year]
+;;
+;;  let num-new-infections-this-year count newly-infected
+;;  let num-new-death-this-year count newly-dead
+;;;  let num-new-MSM-this-year count newly-infected with [sex = 3]
+;;;  let num-new-HET-this-year count newly-infected with [sex <= 2] 
+;;  
+;;  matrix:set totalNewInfection (year) tempRun num-new-infections-this-year
+;;  
+;;  matrix:set totalNewDeath (year) tempRun num-new-death-this-year
+;;  
+;;  matrix:set totalNewDeathLife (year) tempRun count newly-dead with [dead-reason = 1]
+;;  matrix:set totalNewDeathCD4 (year) tempRun count newly-dead with [dead-reason = 2]
+;;  matrix:set totalNewDeathHIV (year) tempRun count newly-dead with [dead-reason = 3]
+;;
+;;  matrix:set overallTransRate (year) tempRun num-new-infections-this-year / sum (count-person-years-by-sex) * 100
+;;  
+;;  let i 0
+;;  while [i < num-sex]
+;;  [
+;;    ;# of new infections by sex (outcome)"
+;;    matrix:set numNewInfBySex (year) (tempRun * num-sex + i) (count item i newly-infected-sex)
+;;    ;# of new infections by sex (source)
+;;    matrix:set numNewInfViaSex (year) (tempRun * num-sex + i) (item i count-trans-by-sex)    
+;;    
+;;    if num-new-infections-this-year > 0
+;;    [
+;;      ;% of new infections by sex"
+;;      matrix:set percNewInfBySex (year) (tempRun * num-sex + i) (count item i newly-infected-sex / num-new-infections-this-year)
+;;      ;% of new infections via sex
+;;      matrix:set percNewInfViaSex (year) (tempRun * num-sex + i) (item i count-trans-by-sex / num-new-infections-this-year)
+;;    ]   
+;;
+;;    if item i count-trans-by-sex > 0
+;;    [matrix:set personYearsBySex (year) (tempRun * num-sex + i) (item i count-person-years-by-sex)]
+;;    
+;;    if item i count-person-years-by-sex > 0
+;;    [matrix:set transRateBySex (year) (tempRun * num-sex + i) (item i count-trans-by-sex / item i count-person-years-by-sex * 100)]
+;;    set i i + 1
+;;  ]
+;;
+;;  ;# of new infections by care continuum"
+;;  set i 0
+;;  while [i < num-stage]
+;;  [
+;;    ;# of new infections by care continuum (source)
+;;    matrix:set numNewInfViaStage (year) (tempRun * num-stage + i) (item i count-trans-by-stage)
+;;    
+;;    if num-new-infections-this-year > 0
+;;    [matrix:set percNewInfViaStage (year) (tempRun * num-stage + i) (item i count-trans-by-stage / num-new-infections-this-year)]
+;;    
+;;    if item i count-trans-by-stage > 0
+;;    [matrix:set personYearsByStage (year) (tempRun * num-stage + i) (item i count-person-years-by-stage)]
+;;    
+;;    if item i count-person-years-by-stage > 0
+;;    [matrix:set transRateByStage (year) (tempRun * num-stage + i) (item i count-trans-by-stage / item i count-person-years-by-stage * 100)]
+;;    
+;;    set i i + 1
+;;  ]
+;;  
+;;  ;% of new infections by age
+;;     
+;;  set i 0
+;;  while [i < num-age]
+;;  [
+;;    ;# of new infections by age (outcome)
+;;    matrix:set numNewInfByAge (year) (tempRun * num-age + i) (count item i newly-infected-age)
+;;    ;# of new infections by age (source)
+;;    matrix:set numNewInfViaAge (year) (tempRun * num-age + i) (item i count-trans-by-age)
+;;    
+;;    if num-new-infections-this-year > 0
+;;    [;% of new infections by age
+;;      matrix:set percNewInfByAge (year) (tempRun * num-age + i) (count item i newly-infected-age / num-new-infections-this-year)   
+;;      matrix:set percNewInfViaAge (year) (tempRun * num-age + i) (item i count-trans-by-age / num-new-infections-this-year)
+;;    ] 
+;;    
+;;    if item i count-trans-by-age > 0
+;;    [matrix:set personYearsByAge (year) (tempRun * num-age + i) (item i count-person-years-by-age)]
+;;    
+;;    if item i count-person-years-by-age > 0
+;;    [matrix:set transRateByAge (year) (tempRun * num-age + i) (item i count-trans-by-age / item i count-person-years-by-age * 100)]
+;;    
+;;    set i i + 1
+;;  ]
+;  
+;;  ;# of new infections by ptnr type"
+;;  set i 0
+;;  while [i < length (count-trans-by-ptnr-type)]
+;;  [matrix:set numNewInfByPtnrType (year) (tempRun * num-stage + i) (item i count-trans-by-ptnr-type)
+;;    set i i + 1
+;;  ]
+;;
+;;  ;# of PLWH newly diagnosed"
+;;  
+;;  let newly-diagnosed-people people with [infected? = true and stage >= 3 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit]
+;;  let newly-diagnosed-PLWH count newly-diagnosed-people
+;;  let newly-diagnosed-MSM-people newly-diagnosed-people with [sex = 3]
+;;  let newly-diagnosed-MSM count newly-diagnosed-MSM-people
+;;  let newly-diagnosed-HET-people newly-diagnosed-people with [sex <= 2]
+;;  let newly-diagnosed-HET count newly-diagnosed-HET-people  
+;
+;;  set i 0
+;;  while [i < num-CD4]
+;;  [;# of PLWH by CD4-count at diagnosis, next-test is the time unit diagnosed
+;;    matrix:set numNewInfByCD4 (year) (tempRun * num-CD4 + i) (count newly-diagnosed-people with [CD4-diagnosis >= item i CD4-LB and CD4-diagnosis <= item i CD4-UB])
+;;    ;% of PLWH by CD4-count at diagnosis
+;;    if newly-diagnosed-PLWH > 0
+;;    [matrix:set percNewInfByCD4 (year) (tempRun * num-CD4 + i) (matrix:get numNewInfByCD4 (year) (tempRun * (length CD4-LB) + i) / newly-diagnosed-PLWH)]
+;;    ;# of MSM by CD4-count at diagnosis
+;;    matrix:set numMSMByCD4 (year) (tempRun * num-CD4 + i) (count newly-diagnosed-MSM-people with [CD4-diagnosis >= item i CD4-LB and CD4-diagnosis <= item i CD4-UB])   
+;;    ;% of MSM by CD4-count at diagnosis
+;;    if newly-diagnosed-MSM > 0
+;;    [matrix:set percMSMByCD4 (year) (tempRun * num-CD4 + i) (matrix:get numMSMByCD4 (year) (tempRun * (length CD4-LB) + i) / newly-diagnosed-MSM)]
+;;    ;# of HET by CD4-count at diagnosis
+;;    matrix:set numHETByCD4 (year) (tempRun * num-CD4 + i) (count newly-diagnosed-HET-people with [CD4-diagnosis >= item i CD4-LB and CD4-diagnosis <= item i CD4-UB])
+;;    ;% of HET by CD4-count at diagnosis
+;;    if newly-diagnosed-HET > 0
+;;    [matrix:set percHETByCD4 (year) (tempRun * num-CD4 + i) (matrix:get numHETByCD4 (year) (tempRun * (length CD4-LB) + i) / newly-diagnosed-HET)]
+;;   
+;;    matrix:set acuteByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 1 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    matrix:set nonAcuteByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 2 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    matrix:set awareByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 3 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    matrix:set inCareByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 4 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    matrix:set onARTByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 5 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    matrix:set reboundByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 5 and regimen = 40 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    matrix:set salvageByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 5 and regimen = 10 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    matrix:set VLSByCD4 (year) (tempRun * num-CD4 + i) (count total-people with [stage = 6 and CD4-count >= item i CD4-LB and CD4-count <= item i CD4-UB])
+;;    
+;;    set i i + 1
+;;  ]
+;
+;;  ;PLWH stats of CD4 at diagnosis"
+;;  if count newly-diagnosed-people > 0
+;;  [matrix:set countCD4Diag (year) tempRun (count newly-diagnosed-people)
+;;    matrix:set meanCD4Diag (year) tempRun (mean [CD4-diagnosis] of newly-diagnosed-people)
+;;    matrix:set medianCD4Diag (year) tempRun (median [CD4-diagnosis] of newly-diagnosed-people)]
+;;
+;;  ;MSM stats of CD4 at diagnosis"
+;;  if count newly-diagnosed-MSM-people > 0
+;;  [matrix:set countCD4DiagMSM (year) tempRun (count newly-diagnosed-MSM-people)
+;;    matrix:set meanCD4DiagMSM (year) tempRun (mean [CD4-diagnosis] of newly-diagnosed-MSM-people)
+;;    matrix:set medianCD4DiagMSM (year) tempRun (median [CD4-diagnosis] of newly-diagnosed-MSM-people)]
+;;
+;;  ;HET stats of CD4 at diagnosis"
+;;  if count newly-diagnosed-HET-people > 0
+;;  [matrix:set countCD4DiagHET (year) tempRun (count newly-diagnosed-HET-people)
+;;    matrix:set meanCD4DiagHET (year) tempRun (mean [CD4-diagnosis] of newly-diagnosed-HET-people)
+;;    matrix:set medianCD4DiagHET (year) tempRun (median [CD4-diagnosis] of newly-diagnosed-HET-people)]
+;;
+;;  ;PLWH stats of CD4 at initial ART"
+;;  let CD4-people people with [infected? = true and CD4-ART > 0 and ticks - quarter-ART-start <= 1 * time-unit]
+;;  let CD4-MSM-people CD4-people with [sex = 3]
+;;  let CD4-HET-people CD4-people with [sex <= 2]
+;;  
+;;  if count CD4-people > 0
+;;  [matrix:set countCD4ART (year) tempRun (count CD4-people)
+;;    matrix:set meanCD4ART (year) tempRun (mean [CD4-ART] of CD4-people)
+;;    matrix:set medianCD4ART (year) tempRun (median [CD4-ART] of CD4-people)]
+;;
+;;  ;MSM stats of CD4 at initial ART"
+;;  if count CD4-MSM-people > 0
+;;  [matrix:set countCD4ARTMSM (year) tempRun (count CD4-MSM-people)
+;;    matrix:set meanCD4ARTMSM (year) tempRun (mean [CD4-ART] of CD4-MSM-people)
+;;    matrix:set medianCD4ARTMSM (year) tempRun (median [CD4-ART] of CD4-MSM-people)]
+;;
+;;  ;HET stats of CD4 at initial ART"
+;;  if count CD4-HET-people > 0
+;;  [matrix:set countCD4ARTHET (year) tempRun (count CD4-HET-people)
+;;    matrix:set meanCD4ARTHET (year) tempRun (mean [CD4-ART] of CD4-HET-people)
+;;    matrix:set medianCD4ARTHET (year) tempRUn (median [CD4-ART] of CD4-HET-people)]
+;
+;;end
+;
+;to write-new-infections-header
+;  
+;  if goal = 1 [file-open "results-new-infections-one.csv"]
+;  if goal = 2 [file-open "results-new-infections-two.csv"]
+;  if goal = 3 [file-open "results-new-infections-three.csv"]
+;  if goal = 4 [file-open "results-new-infections-four.csv"]
+;  if goal = 5 [file-open "results-new-infections-five.csv"]
+;  
+;  file-write "Year"
+;  
+;  file-write "Total new infection mean"
+;  file-write "Total new infection std"
+;  file-write "Total new infection lb"
+;  file-write "Total new infection ub"
+;  
+;  file-write "Total new death mean"
+;  file-write "Total new death std"
+;  file-write "Total new death lb"
+;  file-write "Total new death ub"
+;  
+;  file-write "Total new death life expectancy mean"
+;  file-write "Total new death life expectancy std"
+;  file-write "Total new death life expectancy lb"
+;  file-write "Total new death life expectancy ub"
+;  
+;  file-write "Total new death cd4 mean"
+;  file-write "Total new death cd4 std"
+;  file-write "Total new death cd4 lb"
+;  file-write "Total new death cd4 ub"
+;  
+;  file-write "Total new death HIV mean"
+;  file-write "Total new death HIV std"
+;  file-write "Total new death HIV lb"
+;  file-write "Total new death HIV ub"
+;  
+;  file-write "Transmission rate mean"
+;  file-write "Transmission rate std"
+;  file-write "Transmission rate lb"
+;  file-write "Transmission rate ub"
+;
+;  repeat 24
+;  [
+;    file-write ""
+;    file-write "HEF"
+;    file-write "HEM"
+;    file-write "MSM"
+;    file-write "IDU-HEF"
+;    file-write "IDU-HEM"
+;    file-write "IDU-MSM"
+;  ]  
+;   
+;  repeat 16
+;  [
+;    file-write ""
+;    file-write "Actue-unaware"
+;    file-write "NonAcute-unaware"
+;    file-write "Aware-no-care"
+;    file-write "In-care-no-ART"
+;    file-write "ART-no-VLS"
+;    file-write "VLS"
+;  ]  
+;
+;  repeat 24
+;  [
+;    file-write ""
+;    file-write "13-24"
+;    file-write "25-34"
+;    file-write "35-44"
+;    file-write "45~54"
+;    file-write ">=55"
+;  ]
+;
+;;  file-write ""
+;;  file-write "HET main"
+;;  file-write "Bisexual to female"
+;;  file-write "Bisexual to MSM"
+;;  file-write "MSM to MSM (only 1 main)"
+;;  file-write "MSM to MSM (1 or 2 main with or without casual ptnrs)"
+;;  file-write "MSM to casual ptnrs"
+;;  file-write "HET concurrent"
+;
+;;  repeat 6
+;;  [file-write ""
+;;    file-write "<=50"
+;;    file-write "51~200"
+;;    file-write "201~350"
+;;    file-write "351~500"
+;;    file-write ">=501"
+;;  ]
+;  
+;
+;  
+;;  repeat 6
+;;  [file-write ""
+;;    file-write "Count"
+;;    file-write "Mean"
+;;    file-write "Median"]
+;
+;  file-print ""
+;
+;  file-close
+;  
+;end
+;
+;;to write-results-new-infections
+;;
+;;  let t 0 
+;;  let i 0
+;;  let j 0
+;;  
+;;  ;; write PLWH output
+;;  if goal = 1 [file-open "results-new-infections-one.csv"]
+;;  if goal = 2 [file-open "results-new-infections-two.csv"]
+;;  if goal = 3 [file-open "results-new-infections-three.csv"]
+;;  if goal = 4 [file-open "results-new-infections-four.csv"]
+;;  if goal = 5 [file-open "results-new-infections-five.csv"]
+;;  
+;;  let colInd 0
+;;  let tempVecNumBy 0
+;;  let tempVecPercBy 0
+;;  let tempMeanNumBy 0
+;;  let tempMeanPercBy 0
+;;  let tempStdNumBy 0
+;;  let tempStdPercBy 0
+;;  let tempLCINumBy 0
+;;  let tempLCIPercBy 0
+;;  let tempUCINumBy 0
+;;  let tempUCIPercBy 0 
+;;  let tempVecNumVia 0
+;;  let tempVecPercVia 0
+;;  let tempMeanNumVia 0
+;;  let tempMeanPercVia 0
+;;  let tempStdNumVia 0
+;;  let tempStdPercVia 0
+;;  let tempLCINumVia 0
+;;  let tempLCIPercVia 0
+;;  let tempUCINumVia 0
+;;  let tempUCIPercVia 0
+;;  let tempVecPersonYears 0
+;;  let tempMeanPersonYears 0
+;;  let tempStdPersonYears 0
+;;  let tempLCIPersonYears 0
+;;  let tempUCIPersonYears 0
+;;  let tempVecTransRate 0
+;;  let tempMeanTransRate 0
+;;  let tempStdTransRate 0
+;;  let tempLCITransRate 0
+;;  let tempUCITransRate 0
+;;
+;;  set t 0
+;;  while [t < maxYear]
+;;  [
+;;    file-write t
+;;    
+;;    file-write mean (matrix:get-row totalNewInfection t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row totalNewInfection t)
+;;      file-write mean (matrix:get-row totalNewInfection t) - zAlpha * standard-deviation (matrix:get-row totalNewInfection t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row totalNewInfection t) + zAlpha * standard-deviation (matrix:get-row totalNewInfection t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row totalNewInfection t)
+;;      file-write mean (matrix:get-row totalNewInfection t)
+;;    ]
+;;    
+;;    file-write mean (matrix:get-row totalNewDeath t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row totalNewDeath t)
+;;      file-write mean (matrix:get-row totalNewDeath t) - zAlpha * standard-deviation (matrix:get-row totalNewDeath t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row totalNewDeath t) + zAlpha * standard-deviation (matrix:get-row totalNewDeath t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row totalNewDeath t)
+;;      file-write mean (matrix:get-row totalNewDeath t)
+;;    ]
+;; 
+;;    file-write mean (matrix:get-row totalNewDeathLife t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row totalNewDeathLife t)
+;;      file-write mean (matrix:get-row totalNewDeathLife t) - zAlpha * standard-deviation (matrix:get-row totalNewDeathLife t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row totalNewDeathLife t) + zAlpha * standard-deviation (matrix:get-row totalNewDeathLife t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row totalNewDeathLife t)
+;;      file-write mean (matrix:get-row totalNewDeathLife t)
+;;    ]
+;;    
+;;    file-write mean (matrix:get-row totalNewDeathCD4 t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row totalNewDeathCD4 t)
+;;      file-write mean (matrix:get-row totalNewDeathCD4 t) - zAlpha * standard-deviation (matrix:get-row totalNewDeathCD4 t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row totalNewDeathCD4 t) + zAlpha * standard-deviation (matrix:get-row totalNewDeathCD4 t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row totalNewDeathCD4 t)
+;;      file-write mean (matrix:get-row totalNewDeathCD4 t)
+;;    ]
+;;    
+;;    file-write mean (matrix:get-row totalNewDeathHIV t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row totalNewDeathHIV t)
+;;      file-write mean (matrix:get-row totalNewDeathHIV t) - zAlpha * standard-deviation (matrix:get-row totalNewDeathHIV t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row totalNewDeathHIV t) + zAlpha * standard-deviation (matrix:get-row totalNewDeathHIV t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row totalNewDeathHIV t)
+;;      file-write mean (matrix:get-row totalNewDeathHIV t)
+;;    ]
+;;    
+;;    file-write mean (matrix:get-row overallTransRate t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row overallTransRate t)
+;;      file-write mean (matrix:get-row overallTransRate t) - zAlpha * standard-deviation (matrix:get-row overallTransRate t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row overallTransRate t) + zAlpha * standard-deviation (matrix:get-row overallTransRate t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row overallTransRate t)
+;;      file-write mean (matrix:get-row overallTransRate t)
+;;    ]
+;;    
+;;    ; write new infections by sex
+;;    set colInd n-values maxRun [x -> x * num-sex]
+;;    set tempVecNumBy n-values maxRun [0]
+;;    set tempVecPercBy n-values maxRun [0]
+;;    set tempVecNumVia n-values maxRun [0]
+;;    set tempVecPercVia n-values maxRun [0]
+;;    set tempVecPersonYears n-values maxRun [0]
+;;    set tempVecTransRate n-values maxRun [0]
+;;    
+;;    set tempMeanNumBy n-values num-sex [0]
+;;    set tempMeanPercBy tempMeanNumBy
+;;    set tempStdNumBy tempMeanNumBy
+;;    set tempStdPercBy tempMeanNumBy
+;;    set tempLCINumBy tempMeanNumBy
+;;    set tempLCIPercBy tempMeanNumBy
+;;    set tempUCINumBy tempMeanNumBy
+;;    set tempUCIPercBy tempMeanNumBy
+;;    set tempMeanNumVia tempMeanNumBy
+;;    set tempMeanPercVia tempMeanNumBy
+;;    set tempStdNumVia tempMeanNumBy
+;;    set tempStdPercVia tempMeanNumBy
+;;    set tempLCINumVia tempMeanNumBy
+;;    set tempLCIPercVia tempMeanNumBy
+;;    set tempUCINumVia tempMeanNumBy
+;;    set tempUCIPercVia tempMeanNumBy
+;;    set tempMeanPersonYears tempMeanNumBy
+;;    set tempStdPersonYears tempMeanNumBy
+;;    set tempLCIPersonYears tempMeanNumBy
+;;    set tempUCIPersonYears tempMeanNumBy
+;;    set tempMeanTransRate tempMeanNumBy
+;;    set tempStdTransRate tempMeanNumBy
+;;    set tempLCITransRate tempMeanNumBy
+;;    set tempUCITransRate tempMeanNumBy
+;;      
+;;    set i 0
+;;    while [i < num-sex]
+;;    [
+;;      set j 0
+;;      while [j < maxRun]
+;;      [
+;;        set tempVecNumBy replace-item j tempVecNumBy (matrix:get numNewInfBySex t (item j colInd + i))
+;;        set tempVecPercBy replace-item j tempVecPercBy (matrix:get percNewInfBySex t (item j colInd + i))
+;;        set tempVecNumVia replace-item j tempVecNumVia (matrix:get numNewInfViaSex t (item j colInd + i))
+;;        set tempVecPercVia replace-item j tempVecPercVia (matrix:get percNewInfViaSex t (item j colInd + i))
+;;        set tempVecPersonYears replace-item j tempVecPersonYears (matrix:get personYearsBySex t (item j colInd + i))
+;;        set tempVecTransRate replace-item j tempVecTransRate (matrix:get transRateBySex t (item j colInd + i))       
+;;        set j j + 1
+;;      ]
+;;      
+;;      set tempMeanNumBy replace-item i tempMeanNumBy mean (tempVecNumBy)
+;;      set tempMeanPercBy replace-item i tempMeanPercBy mean (tempVecPercBy)
+;;      set tempMeanNumVia replace-item i tempMeanNumVia mean (tempVecNumVia)
+;;      set tempMeanPercVia replace-item i tempMeanPercVia mean (tempVecPercVia)
+;;      set tempMeanPersonYears replace-item i tempMeanPersonYears mean (tempVecPersonYears)
+;;      set tempMeanTransRate replace-item i tempMeanTransRate mean (tempVecTransRate)
+;;      
+;;      if maxRun > 1
+;;      [
+;;        set tempStdNumBy replace-item i tempStdNumBy standard-deviation (tempVecNumBy)
+;;        set tempLCINumBy replace-item i tempLCINumBy (item i tempMeanNumBy - zAlpha * (item i tempStdNumBy) / sqrt (maxRun))
+;;        set tempUCINumBy replace-item i tempUCINumBy (item i tempMeanNumBy + zAlpha * (item i tempStdNumBy) / sqrt (maxRun))
+;;        
+;;        set tempStdPercBy replace-item i tempStdPercBy standard-deviation (tempVecPercBy)
+;;        set tempLCIPercBy replace-item i tempLCIPercBy (item i tempMeanPercBy - zAlpha * (item i tempStdPercBy) / sqrt (maxRun))
+;;        set tempUCIPercBy replace-item i tempUCIPercBy (item i tempMeanPercBy + zAlpha * (item i tempStdPercBy) / sqrt (maxRun))
+;;        
+;;        set tempStdNumVia replace-item i tempStdNumVia standard-deviation (tempVecNumVia)
+;;        set tempLCINumVia replace-item i tempLCINumVia (item i tempMeanNumVia - zAlpha * (item i tempStdNumVia) / sqrt (maxRun))
+;;        set tempUCINumVia replace-item i tempUCINumVia (item i tempMeanNumVia + zAlpha * (item i tempStdNumVia) / sqrt (maxRun))
+;;        
+;;        set tempStdPercVia replace-item i tempStdPercVia standard-deviation (tempVecPercVia)
+;;        set tempLCIPercVia replace-item i tempLCIPercVia (item i tempMeanPercVia - zAlpha * (item i tempStdPercVia) / sqrt (maxRun))
+;;        set tempUCIPercVia replace-item i tempUCIPercVia (item i tempMeanPercVia + zAlpha * (item i tempStdPercVia) / sqrt (maxRun))
+;;        
+;;        set tempStdPersonYears replace-item i tempStdPersonYears standard-deviation (tempVecPersonYears)
+;;        set tempLCIPersonYears replace-item i tempLCIPersonYears (item i tempMeanPersonYears - zAlpha * (item i tempStdPersonYears) / sqrt (maxRun))
+;;        set tempUCIPersonYears replace-item i tempUCIPersonYears (item i tempMeanPersonYears + zAlpha * (item i tempStdPersonYears) / sqrt (maxRun))
+;;        
+;;        set tempStdTransRate replace-item i tempStdTransRate standard-deviation (tempVecTransRate)
+;;        set tempLCITransRate replace-item i tempLCITransRate (item i tempMeanTransRate - zAlpha * (item i tempStdTransRate) / sqrt (maxRun))
+;;        set tempUCITransRate replace-item i tempUCITransRate (item i tempMeanTransRate + zAlpha * (item i tempStdTransRate) / sqrt (maxRun))
+;;      ]     
+;;      
+;;      set i i + 1
+;;      
+;;    ]
+;;    
+;;    file-write "mean # of new infections by sex"
+;;    file-write tempMeanNumBy
+;;    file-write "standard deviation on # of new infections by sex"
+;;    file-write tempStdNumBy
+;;    file-write "lower bound confidence interval on # of new infections by sex"
+;;    file-write tempLCINumBy
+;;    file-write "upper bound confidence interval on # of new infections by sex"
+;;    file-write tempUCINumBy
+;;    
+;;    file-write "mean % of new infections by sex"
+;;    file-write tempMeanPercBy
+;;    file-write "standard deviation on % of new infections by sex"
+;;    file-write tempStdPercBy
+;;    file-write "lower bound confidence interval on % of new infections by sex"
+;;    file-write tempLCIPercBy
+;;    file-write "upper bound confidence interval on % of new infections by sex"
+;;    file-write tempUCIPercBy
+;;    
+;;    file-write "mean # of new infections via sex"
+;;    file-write tempMeanNumVia
+;;    file-write "standard deviation on # of new infections via sex"
+;;    file-write tempStdNumVia
+;;    file-write "lower bound confidence interval on # of new infections via sex"
+;;    file-write tempLCINumVia
+;;    file-write "upper bound confidence interval on # of new infections via sex"
+;;    file-write tempUCINumVia
+;;    
+;;    file-write "mean % of new infections via sex"
+;;    file-write tempMeanPercVia
+;;    file-write "standard deviation on % of new infections via sex"
+;;    file-write tempStdPercVia
+;;    file-write "lower bound confidence interval on % of new infections via sex"
+;;    file-write tempLCIPercVia
+;;    file-write "upper bound confidence interval on % of new infections via sex"
+;;    file-write tempUCIPercVia
+;;    
+;;    file-write "mean PersonYears by sex"
+;;    file-write tempMeanPersonYears
+;;    file-write "standard deviation on PersonYears by sex"
+;;    file-write tempStdPersonYears
+;;    file-write "lower bound confidence interval on PersonYears by sex"
+;;    file-write tempLCIPersonYears
+;;    file-write "upper bound confidence interval on PersonYears by sex"
+;;    file-write tempUCIPersonYears
+;;    
+;;    file-write "mean TransRate by sex"
+;;    file-write tempMeanTransRate
+;;    file-write "standard deviation on TransRate by sex"
+;;    file-write tempStdTransRate
+;;    file-write "lower bound confidence interval on TransRate by sex"
+;;    file-write tempLCITransRate
+;;    file-write "upper bound confidence interval on TransRate by sex"
+;;    file-write tempUCITransRate
+;;    
+;;    ; write new infections by care continuum   
+;;    set colInd n-values maxRun [x -> x * num-stage]
+;;    set tempVecNumVia n-values maxRun [0]
+;;    set tempVecPercVia n-values maxRun [0]
+;;    set tempVecPersonYears n-values maxRun [0]
+;;    set tempVecTransRate n-values maxRun [0]    
+;;    
+;;    set tempMeanNumVia n-values num-stage [0]
+;;    set tempMeanPercVia tempMeanNumVia
+;;    set tempStdNumVia tempMeanNumVia
+;;    set tempStdPercVia tempMeanNumVia
+;;    set tempLCINumVia tempMeanNumVia
+;;    set tempLCIPercVia tempMeanNumVia
+;;    set tempUCINumVia tempMeanNumVia
+;;    set tempUCIPercVia tempMeanNumVia
+;;    set tempMeanPersonYears tempMeanNumVia
+;;    set tempStdPersonYears tempMeanNumVia
+;;    set tempLCIPersonYears tempMeanNumVia
+;;    set tempUCIPersonYears tempMeanNumVia
+;;    set tempMeanTransRate tempMeanNumVia
+;;    set tempStdTransRate tempMeanNumVia
+;;    set tempLCITransRate tempMeanNumVia
+;;    set tempUCITransRate tempMeanNumVia
+;;    
+;;    set i 0
+;;    while [i < num-stage]
+;;    [
+;;      set j 0
+;;      while [j < maxRun]
+;;      [
+;;        set tempVecNumVia replace-item j tempVecNumVia (matrix:get numNewInfViaStage t (item j colInd + i))
+;;        set tempVecPercVia replace-item j tempVecPercVia (matrix:get percNewInfViaStage t (item j colInd + i))
+;;        set tempVecPersonYears replace-item j tempVecPersonYears (matrix:get personYearsByStage t (item j colInd + i))
+;;        set tempVecTransRate replace-item j tempVecTransRate (matrix:get transRateByStage t (item j colInd + i))       
+;;        set j j + 1
+;;      ]
+;;      
+;;      set tempMeanNumVia replace-item i tempMeanNumVia mean (tempVecNumVia)
+;;      set tempMeanPercVia replace-item i tempMeanPercVia mean (tempVecPercVia)
+;;      set tempMeanPersonYears replace-item i tempMeanPersonYears mean (tempVecPersonYears)
+;;      set tempMeanTransRate replace-item i tempMeanTransRate mean (tempVecTransRate)
+;;      
+;;      if maxRun > 1
+;;      [        
+;;        set tempStdNumVia replace-item i tempStdNumVia standard-deviation (tempVecNumVia)
+;;        set tempLCINumVia replace-item i tempLCINumVia (item i tempMeanNumVia - zAlpha * (item i tempStdNumVia) / sqrt (maxRun))
+;;        set tempUCINumVia replace-item i tempUCINumVia (item i tempMeanNumVia + zAlpha * (item i tempStdNumVia) / sqrt (maxRun))
+;;        
+;;        set tempStdPercVia replace-item i tempStdPercVia standard-deviation (tempVecPercVia)
+;;        set tempLCIPercVia replace-item i tempLCIPercVia (item i tempMeanPercVia - zAlpha * (item i tempStdPercVia) / sqrt (maxRun))
+;;        set tempUCIPercVia replace-item i tempUCIPercVia (item i tempMeanPercVia + zAlpha * (item i tempStdPercVia) / sqrt (maxRun))
+;;        
+;;        set tempStdPersonYears replace-item i tempStdPersonYears standard-deviation (tempVecPersonYears)
+;;        set tempLCIPersonYears replace-item i tempLCIPersonYears (item i tempMeanPersonYears - zAlpha * (item i tempStdPersonYears) / sqrt (maxRun))
+;;        set tempUCIPersonYears replace-item i tempUCIPersonYears (item i tempMeanPersonYears + zAlpha * (item i tempStdPersonYears) / sqrt (maxRun))
+;;        
+;;        set tempStdTransRate replace-item i tempStdTransRate standard-deviation (tempVecTransRate)
+;;        set tempLCITransRate replace-item i tempLCITransRate (item i tempMeanTransRate - zAlpha * (item i tempStdTransRate) / sqrt (maxRun))
+;;        set tempUCITransRate replace-item i tempUCITransRate (item i tempMeanTransRate + zAlpha * (item i tempStdTransRate) / sqrt (maxRun))
+;;      ]     
+;;      
+;;      set i i + 1
+;;      
+;;    ]
+;;    
+;;    file-write "mean # of new infections via stage"
+;;    file-write tempMeanNumVia
+;;    file-write "standard deviation on # of new infections via stage"
+;;    file-write tempStdNumVia
+;;    file-write "lower bound confidence interval on # of new infections via stage"
+;;    file-write tempLCINumVia
+;;    file-write "upper bound confidence interval on # of new infections via stage"
+;;    file-write tempUCINumVia
+;;    
+;;    file-write "mean % of new infections via stage"
+;;    file-write tempMeanPercVia
+;;    file-write "standard deviation on % of new infections via stage"
+;;    file-write tempStdPercVia
+;;    file-write "lower bound confidence interval on % of new infections via stage"
+;;    file-write tempLCIPercVia
+;;    file-write "upper bound confidence interval on % of new infections via stage"
+;;    file-write tempUCIPercVia
+;;    
+;;    file-write "mean PersonYears by stage"
+;;    file-write tempMeanPersonYears
+;;    file-write "standard deviation on PersonYears by stage"
+;;    file-write tempStdPersonYears
+;;    file-write "lower bound confidence interval on PersonYears by stage"
+;;    file-write tempLCIPersonYears
+;;    file-write "upper bound confidence interval on PersonYears by stage"
+;;    file-write tempUCIPersonYears
+;;    
+;;    file-write "mean TransRate by stage"
+;;    file-write tempMeanTransRate
+;;    file-write "standard deviation on TransRate by stage"
+;;    file-write tempStdTransRate
+;;    file-write "lower bound confidence interval on TransRate by stage"
+;;    file-write tempLCITransRate
+;;    file-write "upper bound confidence interval on TransRate by stage"
+;;    file-write tempUCITransRate
+;;    
+;;    ; write new infections by age
+;;    set colInd n-values maxRun [x -> x * num-age]
+;;    set tempVecNumBy n-values maxRun [0]
+;;    set tempVecPercBy n-values maxRun [0]
+;;    set tempVecNumVia n-values maxRun [0]
+;;    set tempVecPercVia n-values maxRun [0]
+;;    set tempVecPersonYears n-values maxRun [0]
+;;    set tempVecTransRate n-values maxRun [0]
+;;    
+;;    set tempMeanNumBy n-values num-age [0]
+;;    set tempMeanPercBy tempMeanNumBy
+;;    set tempStdNumBy tempMeanNumBy
+;;    set tempStdPercBy tempMeanNumBy
+;;    set tempLCINumBy tempMeanNumBy
+;;    set tempLCIPercBy tempMeanNumBy
+;;    set tempUCINumBy tempMeanNumBy
+;;    set tempUCIPercBy tempMeanNumBy
+;;    set tempMeanNumVia tempMeanNumBy
+;;    set tempMeanPercVia tempMeanNumBy
+;;    set tempStdNumVia tempMeanNumBy
+;;    set tempStdPercVia tempMeanNumBy
+;;    set tempLCINumVia tempMeanNumBy
+;;    set tempLCIPercVia tempMeanNumBy
+;;    set tempUCINumVia tempMeanNumBy
+;;    set tempUCIPercVia tempMeanNumBy
+;;    set tempMeanPersonYears tempMeanNumBy
+;;    set tempStdPersonYears tempMeanNumBy
+;;    set tempLCIPersonYears tempMeanNumBy
+;;    set tempUCIPersonYears tempMeanNumBy
+;;    set tempMeanTransRate tempMeanNumBy
+;;    set tempStdTransRate tempMeanNumBy
+;;    set tempLCITransRate tempMeanNumBy
+;;    set tempUCITransRate tempMeanNumBy
+;;      
+;;    set i 0
+;;    while [i < num-age]
+;;    [
+;;      set j 0
+;;      while [j < maxRun]
+;;      [
+;;        set tempVecNumBy replace-item j tempVecNumBy (matrix:get numNewInfByAge t (item j colInd + i))
+;;        set tempVecPercBy replace-item j tempVecPercBy (matrix:get percNewInfByAge t (item j colInd + i))
+;;        set tempVecNumVia replace-item j tempVecNumVia (matrix:get numNewInfViaAge t (item j colInd + i))
+;;        set tempVecPercVia replace-item j tempVecPercVia (matrix:get percNewInfViaAge t (item j colInd + i))
+;;        set tempVecPersonYears replace-item j tempVecPersonYears (matrix:get personYearsByAge t (item j colInd + i))
+;;        set tempVecTransRate replace-item j tempVecTransRate (matrix:get transRateByAge t (item j colInd + i))       
+;;        set j j + 1
+;;      ]
+;;      
+;;      set tempMeanNumBy replace-item i tempMeanNumBy mean (tempVecNumBy)
+;;      set tempMeanPercBy replace-item i tempMeanPercBy mean (tempVecPercBy)
+;;      set tempMeanNumVia replace-item i tempMeanNumVia mean (tempVecNumVia)
+;;      set tempMeanPercVia replace-item i tempMeanPercVia mean (tempVecPercVia)
+;;      set tempMeanPersonYears replace-item i tempMeanPersonYears mean (tempVecPersonYears)
+;;      set tempMeanTransRate replace-item i tempMeanTransRate mean (tempVecTransRate)
+;;      
+;;      if maxRun > 1
+;;      [
+;;        set tempStdNumBy replace-item i tempStdNumBy standard-deviation (tempVecNumBy)
+;;        set tempLCINumBy replace-item i tempLCINumBy (item i tempMeanNumBy - zAlpha * (item i tempStdNumBy) / sqrt (maxRun))
+;;        set tempUCINumBy replace-item i tempUCINumBy (item i tempMeanNumBy + zAlpha * (item i tempStdNumBy) / sqrt (maxRun))
+;;        
+;;        set tempStdPercBy replace-item i tempStdPercBy standard-deviation (tempVecPercBy)
+;;        set tempLCIPercBy replace-item i tempLCIPercBy (item i tempMeanPercBy - zAlpha * (item i tempStdPercBy) / sqrt (maxRun))
+;;        set tempUCIPercBy replace-item i tempUCIPercBy (item i tempMeanPercBy + zAlpha * (item i tempStdPercBy) / sqrt (maxRun))
+;;        
+;;        set tempStdNumVia replace-item i tempStdNumVia standard-deviation (tempVecNumVia)
+;;        set tempLCINumVia replace-item i tempLCINumVia (item i tempMeanNumVia - zAlpha * (item i tempStdNumVia) / sqrt (maxRun))
+;;        set tempUCINumVia replace-item i tempUCINumVia (item i tempMeanNumVia + zAlpha * (item i tempStdNumVia) / sqrt (maxRun))
+;;        
+;;        set tempStdPercVia replace-item i tempStdPercVia standard-deviation (tempVecPercVia)
+;;        set tempLCIPercVia replace-item i tempLCIPercVia (item i tempMeanPercVia - zAlpha * (item i tempStdPercVia) / sqrt (maxRun))
+;;        set tempUCIPercVia replace-item i tempUCIPercVia (item i tempMeanPercVia + zAlpha * (item i tempStdPercVia) / sqrt (maxRun))
+;;        
+;;        set tempStdPersonYears replace-item i tempStdPersonYears standard-deviation (tempVecPersonYears)
+;;        set tempLCIPersonYears replace-item i tempLCIPersonYears (item i tempMeanPersonYears - zAlpha * (item i tempStdPersonYears) / sqrt (maxRun))
+;;        set tempUCIPersonYears replace-item i tempUCIPersonYears (item i tempMeanPersonYears + zAlpha * (item i tempStdPersonYears) / sqrt (maxRun))
+;;        
+;;        set tempStdTransRate replace-item i tempStdTransRate standard-deviation (tempVecTransRate)
+;;        set tempLCITransRate replace-item i tempLCITransRate (item i tempMeanTransRate - zAlpha * (item i tempStdTransRate) / sqrt (maxRun))
+;;        set tempUCITransRate replace-item i tempUCITransRate (item i tempMeanTransRate + zAlpha * (item i tempStdTransRate) / sqrt (maxRun))
+;;      ] 
+;;      
+;;      set i i + 1
+;;      
+;;    ]
+;;    
+;;    file-write "mean # of new infections by age"
+;;    file-write tempMeanNumBy
+;;    file-write "standard deviation on # of new infections by age"
+;;    file-write tempStdNumBy
+;;    file-write "lower bound confidence interval on # of new infections by age"
+;;    file-write tempLCINumBy
+;;    file-write "upper bound confidence interval on # of new infections by age"
+;;    file-write tempUCINumBy
+;;    
+;;    file-write "mean % of new infections by age"
+;;    file-write tempMeanPercBy
+;;    file-write "standard deviation on % of new infections by age"
+;;    file-write tempStdPercBy
+;;    file-write "lower bound confidence interval on % of new infections by age"
+;;    file-write tempLCIPercBy
+;;    file-write "upper bound confidence interval on % of new infections by age"
+;;    file-write tempUCIPercBy
+;;    
+;;    file-write "mean # of new infections via age"
+;;    file-write tempMeanNumVia
+;;    file-write "standard deviation on # of new infections via age"
+;;    file-write tempStdNumVia
+;;    file-write "lower bound confidence interval on # of new infections via age"
+;;    file-write tempLCINumVia
+;;    file-write "upper bound confidence interval on # of new infections via age"
+;;    file-write tempUCINumVia
+;;    
+;;    file-write "mean % of new infections via age"
+;;    file-write tempMeanPercVia
+;;    file-write "standard deviation on % of new infections via age"
+;;    file-write tempStdPercVia
+;;    file-write "lower bound confidence interval on % of new infections via age"
+;;    file-write tempLCIPercVia
+;;    file-write "upper bound confidence interval on % of new infections via age"
+;;    file-write tempUCIPercVia
+;;    
+;;    file-write "mean PersonYears by age"
+;;    file-write tempMeanPersonYears
+;;    file-write "standard deviation on PersonYears by age"
+;;    file-write tempStdPersonYears
+;;    file-write "lower bound confidence interval on PersonYears by age"
+;;    file-write tempLCIPersonYears
+;;    file-write "upper bound confidence interval on PersonYears by age"
+;;    file-write tempUCIPersonYears
+;;    
+;;    file-write "mean TransRate by age"
+;;    file-write tempMeanTransRate
+;;    file-write "standard deviation on TransRate by age"
+;;    file-write tempStdTransRate
+;;    file-write "lower bound confidence interval on TransRate by age"
+;;    file-write tempLCITransRate
+;;    file-write "upper bound confidence interval on TransRate by age"
+;;    file-write tempUCITransRate
+;;       
+;;    file-print ""
+;;
+;;    set t t + 1
+;;  ]
+;;
+;;  file-close
+;;
+;;end
+;
+;;to generate-ptnrs [year]
+;;
+;;  matrix:set medianNumPtnrs (year) tempRun (median [sum counter-ptnr] of total-people with [(sum counter-ptnr) > 0])
+;;  matrix:set minNumPtnrs (year) tempRun (min [sum counter-ptnr] of total-people with [(sum counter-ptnr) > 0])
+;;  matrix:set maxNumPtnrs (year) tempRun (max [sum counter-ptnr] of total-people with [(sum counter-ptnr) > 0])
+;;  matrix:set meanNumPtnrs (year) tempRun (mean [sum counter-ptnr] of total-people with [(sum counter-ptnr) > 0])
+;; 
+;;  ;# PLWH by # of all ptnrs
+;;
+;;  let i 0
+;;  while [i < num-ptnr-range]
+;;  [
+;;    matrix:set numByPtnrs (year) (tempRun * num-ptnr-range + i) (count total-people with [sum counter-ptnr >= item i ptnr-LB and sum counter-ptnr <= item i ptnr-UB])
+;;    matrix:set numByMainPtnrs (year) (tempRun * num-ptnr-range + i) (count total-people with [(item 0 counter-ptnr + item 1 counter-ptnr) >= item i ptnr-LB and (item 0 counter-ptnr + item 1 counter-ptnr) <= item i ptnr-UB])
+;;    matrix:set numByCasualSexualPtnrs (year) (tempRun * num-ptnr-range + i) (count total-people with [item 2 counter-ptnr >= item i ptnr-LB and item 2 counter-ptnr <= item i ptnr-UB])
+;;    matrix:set numByCasualIDUPtnrs (year) (tempRun * num-ptnr-range + i) (count total-people with [item 3 counter-ptnr >= item i ptnr-LB and item 3 counter-ptnr <= item i ptnr-UB])
+;;    set i i + 1
+;;  ]
+;;
+;;  ;"% PLWH by # of all ptnrs"
+;;  if total-pop > 0
+;;  [
+;;    set i 0
+;;    while [i < num-ptnr-range]
+;;    [
+;;      matrix:set percByPtnrs (year) (tempRun * num-ptnr-range + i) matrix:get numByPtnrs (year) (tempRun * num-ptnr-range + i) / total-pop
+;;      matrix:set percByMainPtnrs (year) (tempRun * num-ptnr-range + i) matrix:get numByMainPtnrs (year) (tempRun * num-ptnr-range + i) / total-pop
+;;      matrix:set percByCasualSexualPtnrs (year) (tempRun * num-ptnr-range + i) matrix:get numByCasualSexualPtnrs (year) (tempRun * num-ptnr-range + i) / total-pop
+;;      matrix:set percByCasualIDUPtnrs (year) (tempRun * num-ptnr-range + i) matrix:get numByCasualIDUPtnrs (year) (tempRun * num-ptnr-range + i) / total-pop
+;;      set i i + 1
+;;    ]
+;;  ]
+;;  
+;  
+;
+;;end
+;
+;to write-ptnr-header
+;
+;  if goal = 1 [file-open "results-ptnr-one.csv"]
+;  if goal = 2 [file-open "results-ptnr-two.csv"]
+;  if goal = 3 [file-open "results-ptnr-three.csv"]
+;  if goal = 4 [file-open "results-ptnr-four.csv"]
+;  if goal = 5 [file-open "results-ptnr-five.csv"]
+;
+;  file-write "Year"
+;
+;  repeat 4
+;  [
+;    file-write ""
+;    file-write "median"
+;    file-write "min"
+;    file-write "max"
+;    file-write "mean"
+;  ]
+;
+;  repeat 24
+;  [
+;    file-write ""
+;    file-write "0"
+;    file-write "1"
+;    file-write "2~4"
+;    file-write "5~9"
+;    file-write ">=10"
+;  ]
+;
+;  file-print ""
+;
+;  file-close
+;
+;end
+;
+;;to write-results-ptnr
+;;  
+;;  let t 0 
+;;  let i 0
+;;  let j 0
+;;  
+;;  ;; write PLWH output
+;;  if goal = 1 [file-open "results-ptnr-one.csv"]
+;;  if goal = 2 [file-open "results-ptnr-two.csv"]
+;;  if goal = 3 [file-open "results-ptnr-three.csv"]
+;;  if goal = 4 [file-open "results-ptnr-four.csv"]
+;;  if goal = 5 [file-open "results-ptnr-five.csv"]
+;;  
+;;  let colInd 0
+;;  let tempVecNumAll 0
+;;  let tempVecPercAll 0
+;;  let tempVecNumMain 0
+;;  let tempVecPercMain 0
+;;  let tempVecNumCasualSexual 0
+;;  let tempVecPercCasualSexual 0
+;;  let tempVecNumCasualIDU 0
+;;  let tempVecPercCasualIDU 0
+;;  
+;;  let tempMeanNumAll 0
+;;  let tempMeanPercAll 0
+;;  let tempStdNumAll 0
+;;  let tempStdPercAll 0
+;;  let tempLCINumAll 0
+;;  let tempLCIPercAll 0
+;;  let tempUCINumAll 0
+;;  let tempUCIPercAll 0
+;;  let tempMeanNumMain 0
+;;  let tempMeanPercMain 0 
+;;  let tempStdNumMain 0
+;;  let tempStdPercMain 0
+;;  let tempLCINumMain 0
+;;  let tempLCIPercMain 0
+;;  let tempUCINumMain 0
+;;  let tempUCIPercMain 0
+;;  let tempMeanNumCasualSexual 0
+;;  let tempMeanPercCasualSexual 0
+;;  let tempStdNumCasualSexual 0
+;;  let tempStdPercCasualSexual 0
+;;  let tempLCINumCasualSexual 0
+;;  let tempLCIPercCasualSexual 0
+;;  let tempUCINumCasualSexual 0
+;;  let tempUCIPercCasualSexual 0 
+;;  let tempMeanNumCasualIDU 0
+;;  let tempMeanPercCasualIDU 0
+;;  let tempStdNumCasualIDU 0
+;;  let tempStdPercCasualIDU 0
+;;  let tempLCINumCasualIDU 0
+;;  let tempLCIPercCasualIDU 0
+;;  let tempUCINumCasualIDU 0
+;;  let tempUCIPercCasualIDU 0
+;;
+;;  set t 0
+;;  while [t < maxYear]
+;;  [
+;;    file-write t
+;;    
+;;    file-write "Median number of partners"
+;;    file-write mean (matrix:get-row medianNumPtnrs t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row medianNumPtnrs t)
+;;      file-write mean (matrix:get-row medianNumPtnrs t) - zAlpha * standard-deviation (matrix:get-row medianNumPtnrs t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row medianNumPtnrs t) + zAlpha * standard-deviation (matrix:get-row medianNumPtnrs t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row medianNumPtnrs t)
+;;      file-write mean (matrix:get-row medianNumPtnrs t)
+;;    ]
+;;    
+;;    file-write "Minimum number of partners "
+;;    file-write mean (matrix:get-row minNumPtnrs t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row minNumPtnrs t)
+;;      file-write mean (matrix:get-row minNumPtnrs t) - zAlpha * standard-deviation (matrix:get-row minNumPtnrs t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row minNumPtnrs t) + zAlpha * standard-deviation (matrix:get-row minNumPtnrs t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row minNumPtnrs t)
+;;      file-write mean (matrix:get-row minNumPtnrs t)
+;;    ]
+;;        
+;;    file-write "Maximum number of partners"
+;;    file-write mean (matrix:get-row maxNumPtnrs t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row maxNumPtnrs t)
+;;      file-write mean (matrix:get-row maxNumPtnrs t) - zAlpha * standard-deviation (matrix:get-row maxNumPtnrs t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row maxNumPtnrs t) + zAlpha * standard-deviation (matrix:get-row maxNumPtnrs t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row maxNumPtnrs t)
+;;      file-write mean (matrix:get-row maxNumPtnrs t)
+;;    ]
+;;    
+;;    file-write "Mean number of partners"
+;;    file-write mean (matrix:get-row meanNumPtnrs t)
+;;    ifelse maxRun > 1
+;;    [
+;;      file-write standard-deviation (matrix:get-row meanNumPtnrs t)
+;;      file-write mean (matrix:get-row meanNumPtnrs t) - zAlpha * standard-deviation (matrix:get-row meanNumPtnrs t) / sqrt(maxRun)
+;;      file-write mean (matrix:get-row meanNumPtnrs t) + zAlpha * standard-deviation (matrix:get-row meanNumPtnrs t) / sqrt(maxRun) 
+;;    ]
+;;    [
+;;      file-write 0
+;;      file-write mean (matrix:get-row meanNumPtnrs t)
+;;      file-write mean (matrix:get-row meanNumPtnrs t)
+;;    ]
+;;    
+;;    ; write ptnrs distribution
+;;    set colInd n-values maxRun [x -> x * num-ptnr-range]
+;;    set tempVecNumAll n-values maxRun [0]
+;;    set tempVecPercAll n-values maxRun [0]
+;;    set tempVecNumMain n-values maxRun [0]
+;;    set tempVecPercMain n-values maxRun [0]
+;;    set tempVecNumCasualSexual n-values maxRun [0]
+;;    set tempVecPercCasualSexual n-values maxRun [0]
+;;    set tempVecNumCasualIDU n-values maxRun [0]
+;;    set tempVecPercCasualIDU n-values maxRun [0]
+;;    
+;;    set tempMeanNumAll n-values num-ptnr-range [0]
+;;    set tempMeanPercAll tempMeanNumAll
+;;    set tempStdNumAll tempMeanNumAll
+;;    set tempStdPercAll tempMeanNumAll
+;;    set tempLCINumAll tempMeanNumAll
+;;    set tempLCIPercAll tempMeanNumAll
+;;    set tempUCINumAll tempMeanNumAll
+;;    set tempUCIPercAll tempMeanNumAll
+;;    set tempMeanNumMain tempMeanNumAll
+;;    set tempMeanPercMain tempMeanNumAll
+;;    set tempStdNumMain tempMeanNumAll
+;;    set tempStdPercMain tempMeanNumAll
+;;    set tempLCINumMain tempMeanNumAll
+;;    set tempLCIPercMain tempMeanNumAll
+;;    set tempUCINumMain tempMeanNumAll
+;;    set tempUCIPercMain tempMeanNumAll
+;;    set tempMeanNumCasualSexual tempMeanNumAll
+;;    set tempMeanPercCasualSexual tempMeanNumAll
+;;    set tempStdNumCasualSexual tempMeanNumAll
+;;    set tempStdPercCasualSexual tempMeanNumAll
+;;    set tempLCINumCasualSexual tempMeanNumAll
+;;    set tempLCIPercCasualSexual tempMeanNumAll
+;;    set tempUCINumCasualSexual tempMeanNumAll
+;;    set tempUCIPercCasualSexual tempMeanNumAll
+;;    set tempMeanNumCasualIDU tempMeanNumAll
+;;    set tempMeanPercCasualIDU tempMeanNumAll
+;;    set tempStdNumCasualIDU tempMeanNumAll
+;;    set tempStdPercCasualIDU tempMeanNumAll
+;;    set tempLCINumCasualIDU tempMeanNumAll
+;;    set tempLCIPercCasualIDU tempMeanNumAll
+;;    set tempUCINumCasualIDU tempMeanNumAll
+;;    set tempUCIPercCasualIDU tempMeanNumAll
+;;      
+;;    set i 0
+;;    while [i < num-ptnr-range]
+;;    [
+;;      set j 0
+;;      while [j < maxRun]
+;;      [
+;;        set tempVecNumAll replace-item j tempVecNumAll (matrix:get numByPtnrs t (item j colInd + i))
+;;        set tempVecPercAll replace-item j tempVecPercAll (matrix:get percByPtnrs t (item j colInd + i))
+;;        set tempVecNumMain replace-item j tempVecNumMain (matrix:get numByMainPtnrs t (item j colInd + i))
+;;        set tempVecPercMain replace-item j tempVecPercMain (matrix:get percByMainPtnrs t (item j colInd + i))
+;;        set tempVecNumCasualSexual replace-item j tempVecNumCasualSexual (matrix:get numByCasualSexualPtnrs t (item j colInd + i))
+;;        set tempVecPercCasualSexual replace-item j tempVecPercCasualSexual (matrix:get percByCasualSexualPtnrs t (item j colInd + i))
+;;        set tempVecNumCasualIDU replace-item j tempVecNumCasualIDU (matrix:get numByCasualIDUPtnrs t (item j colInd + i))
+;;        set tempVecPercCasualIDU replace-item j tempVecPercCasualIDU (matrix:get percByCasualIDUPtnrs t (item j colInd + i))       
+;;        set j j + 1
+;;      ]
+;;      
+;;      set tempMeanNumAll replace-item i tempMeanNumAll mean (tempVecNumAll)
+;;      set tempMeanPercAll replace-item i tempMeanPercAll mean (tempVecPercAll)
+;;      set tempMeanNumMain replace-item i tempMeanNumMain mean (tempVecNumMain)
+;;      set tempMeanPercMain replace-item i tempMeanPercMain mean (tempVecPercMain)
+;;      set tempMeanNumCasualSexual replace-item i tempMeanNumCasualSexual mean (tempVecNumCasualSexual)
+;;      set tempMeanPercCasualSexual replace-item i tempMeanPercCasualSexual mean (tempVecPercCasualSexual)
+;;      set tempMeanNumCasualIDU replace-item i tempMeanNumCasualIDU mean (tempVecNumCasualIDU)
+;;      set tempMeanPercCasualIDU replace-item i tempMeanPercCasualIDU mean (tempVecPercCasualIDU)
+;;
+;;      if maxRun > 1
+;;      [
+;;        set tempStdNumAll replace-item i tempStdNumAll standard-deviation (tempVecNumAll)
+;;        set tempLCINumAll replace-item i tempLCINumAll (item i tempMeanNumAll - zAlpha * (item i tempStdNumAll) / sqrt (maxRun))
+;;        set tempUCINumAll replace-item i tempUCINumAll (item i tempMeanNumAll + zAlpha * (item i tempStdNumAll) / sqrt (maxRun))
+;;        
+;;        set tempStdPercAll replace-item i tempStdPercAll standard-deviation (tempVecPercAll)
+;;        set tempLCIPercAll replace-item i tempLCIPercAll (item i tempMeanPercAll - zAlpha * (item i tempStdPercAll) / sqrt (maxRun))
+;;        set tempUCIPercAll replace-item i tempUCIPercAll (item i tempMeanPercAll + zAlpha * (item i tempStdPercAll) / sqrt (maxRun))
+;;        
+;;        set tempStdNumMain replace-item i tempStdNumMain standard-deviation (tempVecNumMain)
+;;        set tempLCINumMain replace-item i tempLCINumMain (item i tempMeanNumMain - zAlpha * (item i tempStdNumMain) / sqrt (maxRun))
+;;        set tempUCINumMain replace-item i tempUCINumMain (item i tempMeanNumMain + zAlpha * (item i tempStdNumMain) / sqrt (maxRun))
+;;        
+;;        set tempStdPercMain replace-item i tempStdPercMain standard-deviation (tempVecPercMain)
+;;        set tempLCIPercMain replace-item i tempLCIPercMain (item i tempMeanPercMain - zAlpha * (item i tempStdPercMain) / sqrt (maxRun))
+;;        set tempUCIPercMain replace-item i tempUCIPercMain (item i tempMeanPercMain + zAlpha * (item i tempStdPercMain) / sqrt (maxRun))
+;;        
+;;        set tempStdNumCasualSexual replace-item i tempStdNumCasualSexual standard-deviation (tempVecNumCasualSexual)
+;;        set tempLCINumCasualSexual replace-item i tempLCINumCasualSexual (item i tempMeanNumCasualSexual - zAlpha * (item i tempStdNumCasualSexual) / sqrt (maxRun))
+;;        set tempUCINumCasualSexual replace-item i tempUCINumCasualSexual (item i tempMeanNumCasualSexual + zAlpha * (item i tempStdNumCasualSexual) / sqrt (maxRun))
+;;        
+;;        set tempStdPercCasualSexual replace-item i tempStdPercCasualSexual standard-deviation (tempVecPercCasualSexual)
+;;        set tempLCIPercCasualSexual replace-item i tempLCIPercCasualSexual (item i tempMeanPercCasualSexual - zAlpha * (item i tempStdPercCasualSexual) / sqrt (maxRun))
+;;        set tempUCIPercCasualSexual replace-item i tempUCIPercCasualSexual (item i tempMeanPercCasualSexual + zAlpha * (item i tempStdPercCasualSexual) / sqrt (maxRun))
+;;        
+;;        set tempStdNumCasualIDU replace-item i tempStdNumCasualIDU standard-deviation (tempVecNumCasualIDU)
+;;        set tempLCINumCasualIDU replace-item i tempLCINumCasualIDU (item i tempMeanNumCasualIDU - zAlpha * (item i tempStdNumCasualIDU) / sqrt (maxRun))
+;;        set tempUCINumCasualIDU replace-item i tempUCINumCasualIDU (item i tempMeanNumCasualIDU + zAlpha * (item i tempStdNumCasualIDU) / sqrt (maxRun))
+;;        
+;;        set tempStdPercCasualIDU replace-item i tempStdPercCasualIDU standard-deviation (tempVecPercCasualIDU)
+;;        set tempLCIPercCasualIDU replace-item i tempLCIPercCasualIDU (item i tempMeanPercCasualIDU - zAlpha * (item i tempStdPercCasualIDU) / sqrt (maxRun))
+;;        set tempUCIPercCasualIDU replace-item i tempUCIPercCasualIDU (item i tempMeanPercCasualIDU + zAlpha * (item i tempStdPercCasualIDU) / sqrt (maxRun))      
+;;      ]     
+;;      set i i + 1
+;;    ]
+;;    
+;;    file-write "mean # of total partner"
+;;    file-write tempMeanNumAll
+;;    file-write "standard deviation on # of total partner"
+;;    file-write tempStdNumAll
+;;    file-write "lower bound confidence interval on # of total partner"
+;;    file-write tempLCINumAll
+;;    file-write "upper bound confidence interval on # of total partner"
+;;    file-write tempUCINumAll
+;;    
+;;    file-write "mean % over total partner"
+;;    file-write tempMeanPercAll
+;;    file-write "standard deviation on % over total partner"
+;;    file-write tempStdPercAll
+;;    file-write "lower bound confidence interval on % over total partner"
+;;    file-write tempLCIPercAll
+;;    file-write "upper bound confidence interval on % over total partner"
+;;    file-write tempUCIPercAll
+;;    
+;;    file-write "mean # of main partner"
+;;    file-write tempMeanNumMain
+;;    file-write "standard deviation on # of main partner"
+;;    file-write tempStdNumMain
+;;    file-write "lower bound confidence interval on # of main partner"
+;;    file-write tempLCINumMain
+;;    file-write "upper bound confidence interval on # of main partner"
+;;    file-write tempUCINumMain
+;;    
+;;    file-write "mean % over main partner"
+;;    file-write tempMeanPercMain
+;;    file-write "standard deviation on % over main partner"
+;;    file-write tempStdPercMain
+;;    file-write "lower bound confidence interval on % over main partner"
+;;    file-write tempLCIPercMain
+;;    file-write "upper bound confidence interval on % over main partner"
+;;    file-write tempUCIPercMain
+;;    
+;;    file-write "mean # of casual sexual partner"
+;;    file-write tempMeanNumCasualSexual
+;;    file-write "standard deviation on # ofcasual sexual partner"
+;;    file-write tempStdNumCasualSexual
+;;    file-write "lower bound confidence interval on # of casual sexual partner"
+;;    file-write tempLCINumCasualSexual
+;;    file-write "upper bound confidence interval on # of casual sexual partner"
+;;    file-write tempUCINumCasualSexual
+;;    
+;;    file-write "mean % over casual sexual partner"
+;;    file-write tempMeanPercCasualSexual
+;;    file-write "standard deviation on % over casual sexual partner"
+;;    file-write tempStdPercCasualSexual
+;;    file-write "lower bound confidence interval on % over casual sexual partner"
+;;    file-write tempLCIPercCasualSexual
+;;    file-write "upper bound confidence interval on % over casual sexual partner"
+;;    file-write tempUCIPercCasualSexual
+;;    
+;;    file-write "mean # of casual IDU partner"
+;;    file-write tempMeanNumCasualIDU
+;;    file-write "standard deviation on # of casual IDU partner"
+;;    file-write tempStdNumCasualIDU
+;;    file-write "lower bound confidence interval on # of casual IDU partner"
+;;    file-write tempLCINumCasualIDU
+;;    file-write "upper bound confidence interval on # of casual IDU partner"
+;;    file-write tempUCINumCasualIDU
+;;    
+;;    file-write "mean % over casual IDU partner"
+;;    file-write tempMeanPercCasualIDU
+;;    file-write "standard deviation on % over casual IDU partner"
+;;    file-write tempStdPercCasualIDU
+;;    file-write "lower bound confidence interval on % over casual IDU partner"
+;;    file-write tempLCIPercCasualIDU
+;;    file-write "upper bound confidence interval on % over casual IDU partner"
+;;    file-write tempUCIPercCasualIDU
+;;       
+;;    file-print ""
+;;
+;;    set t t + 1
+;;  ]
+;;
+;;  file-close
+;;  
+;;end

@@ -1,0 +1,467 @@
+;; This is the Bernoulli model for estimating transmission for those in non-acute phase 
+
+to setup-trans-non-acute 
+  
+  ;; error messege for acute transmissions
+  if stage < 2 and ticks > sim-dry-run
+  [print "Error: calling non-acute transmission when PLWH is in acute phase"]
+  
+  ;; determine the number of total sexual acts per month
+  set num-sexual-acts num-acts-yearly / time-unit
+  ;; determine the number of casual sex per casual partner
+  set num-sexual-acts-casual casual-sex-min + random (casual-sex-max - casual-sex-min)
+  
+  ;; transmission rate varies by sex and stage: see global-initialization.nls for values
+  set trans-rate-vaginal item (sex - 1) (item (stage - 1) trans-prob-vaginal-stage)
+  set trans-rate-anal item (sex - 1) (item (stage - 1) trans-prob-anal-stage)
+ 
+  set-increase-condom-use
+
+  ;; determine the number of casual partners per month
+  ifelse casual-sexual-ptnr > 0
+  [
+    set num-casual floor (casual-sexual-ptnr / time-unit) 
+    if random-float 1 <= ((casual-sexual-ptnr mod time-unit) / time-unit) ; rounding up
+    [set num-casual num-casual + 1]  
+    set counter-ptnr replace-item 2 counter-ptnr (item 2 counter-ptnr + num-casual)
+  ]
+  [set num-casual 0]
+  
+  if num-casual * num-sexual-acts-casual > num-sexual-acts
+  [set num-sexual-acts-casual num-sexual-acts / num-casual]
+
+  ;; determine the number of needles shared in this month  
+  set num-needles (num-needles-min + random (num-needles-max - num-needles-min)) / time-unit
+  set num-needles-shared 0
+  set num-needles-shared-casual 0
+  if needle-sharing?
+  [
+    set num-needles-shared num-needles * percent-needles-shared
+    set num-needles-shared-casual num-needles-shared-casual-min + random (num-needles-shared-casual-max - num-needles-shared-casual-min)
+  ]
+  set trans-needle trans-rate-needle 
+  ;; determin needles transmission rate related to VLS
+  if stage = 6 
+  [set trans-needle trans-rate-needle * (1 - reduction-VLS-needle-trans-rate)]
+  ;; determine changes in injection behaviors related to care continuum stage changes
+  if stage = 3 or stage = 4
+  [set num-needles-shared num-needles-shared * (1 - reduction-aware-needles)]
+  if stage >= 5
+  [set num-needles-shared num-needles-shared * (1 - reduction-ART-needles)]
+  
+  ifelse casual-IDU-ptnr > 0
+  [
+    set num-IDU floor (casual-IDU-ptnr / time-unit) 
+    if random-float 1 <= ((casual-IDU-ptnr mod time-unit) / time-unit) ; rounding up
+    [set num-IDU num-IDU + 1]  
+    set counter-ptnr replace-item 3 counter-ptnr (item 3 counter-ptnr + num-IDU)
+  ]
+  [set num-IDU 0]
+
+  if num-IDU * num-needles-shared-casual > num-needles-shared
+  [set num-needles-shared-casual num-needles-shared / num-IDU]
+  
+  ;; generate casual sexual transmission
+  if num-casual > 0
+  [generate-casual-sexual-transmission]
+  ;; generate casual needle-sharing transmission
+  if num-IDU > 0
+  [generate-casual-needle-sharing-transmission]
+  ;; determine change in main partnerships
+  update-main-ptnr
+  ;; update partnership length and generate transmissions
+  generate-main-transmission 1 
+  
+end
+
+;; This is the Bernoulli model for estimating transmission for those in acute phase 
+to setup-trans-acute [week]
+  
+  ;; error messege for non-acute transmissions
+  if stage > 1
+  [print "Error: calling acute transmission when PLWH is not in acute phase"]
+  
+  ;; adjust time unit to weeks instead of months
+  let adjust-time 52 / 12 
+  ;; determine the number of total sexual acts per week
+  set num-sexual-acts num-acts-yearly / (time-unit * adjust-time)
+  ;; determine the number of casual sexual acts per week
+  set num-sexual-acts-casual (casual-sex-min + random (casual-sex-max - casual-sex-min)) / adjust-time   
+  
+  let week-increase-rate 0  
+  ;; higher transmission in acute stage
+  ifelse sex = 3 or sex = 6
+  [set week-increase-rate item (week - 1) acute-rate-increase-week-MSM] 
+  [set week-increase-rate item (week - 1) acute-rate-increase-week-HET] 
+  
+  ;; change acute phase infection rate based on week of infection
+  set trans-rate-vaginal ((item (sex - 1) (item (stage - 1) trans-prob-vaginal-stage)) * week-increase-rate) / 
+      acute-rate-increase-base
+  set trans-rate-anal ((item (sex - 1) (item (stage - 1) trans-prob-anal-stage)) * week-increase-rate) / 
+      acute-rate-increase-base 
+  
+  ;; determine condom usage based on chagne in care continuum stages
+  set-increase-condom-use
+  
+  ifelse casual-sexual-ptnr > 0
+  [
+    set num-casual floor (casual-sexual-ptnr / (time-unit * adjust-time))   
+    if random-float 1 <= ((casual-sexual-ptnr mod (time-unit * adjust-time)) / (time-unit * adjust-time)); round up
+    [set num-casual num-casual + 1] 
+    set counter-ptnr replace-item 2 counter-ptnr (item 2 counter-ptnr + num-casual)  
+  ]
+  [set num-casual 0]
+  
+  if num-casual * num-sexual-acts-casual > num-sexual-acts
+  [set num-sexual-acts-casual num-sexual-acts / num-casual]
+  
+  ;; determine the number of needles shared in this month  
+  set num-needles (num-needles-min + random (num-needles-max - num-needles-min)) / (time-unit * adjust-time)
+  set num-needles-shared 0
+  set num-needles-shared-casual 0
+  if needle-sharing?
+  [
+    set num-needles-shared num-needles * percent-needles-shared
+    set num-needles-shared-casual 
+        (num-needles-shared-casual-min + 
+        random (num-needles-shared-casual-max - num-needles-shared-casual-min)) /
+        adjust-time
+  ]
+  
+  ifelse casual-IDU-ptnr > 0
+  [
+    set num-IDU floor (casual-IDU-ptnr / (time-unit * adjust-time)) 
+    if random-float 1 <= ((casual-IDU-ptnr mod (time-unit * adjust-time)) / (time-unit * adjust-time)); round up
+    [set num-IDU num-IDU + 1]  
+    set counter-ptnr replace-item 3 counter-ptnr (item 3 counter-ptnr + num-IDU)
+  ]
+  [set num-IDU 0]
+  
+  if num-IDU * num-needles-shared-casual > num-needles-shared
+  [set num-needles-shared-casual num-needles-shared / num-IDU]
+  
+  ;; determine needles transmission rate related to acute infection
+  set trans-needle trans-rate-needle * week-increase-rate
+
+  ;; generate casual sexual transmission
+  if num-casual > 0
+  [generate-casual-sexual-transmission]
+  ;; generate casual needle-sharing transmission
+  if num-IDU > 0
+  [generate-casual-needle-sharing-transmission]
+  ;; determine change in main partnerships
+  update-main-ptnr
+  ;; update partnership length and generate transmissions
+  generate-main-transmission 1 / 4
+  
+end
+
+;; determine the percentage of sexual acts that are protected by condom
+to set-increase-condom-use
+  
+  set protected-acts 0
+  set protected-acts-casual 0
+  ifelse stage >= 3
+  [
+    ifelse random-float 1 <= condom-100perc and (sex = 3 or sex = 6)
+    [
+      set protected-acts 1
+      set protected-acts-casual 1
+    ]
+    [
+      set protected-acts 1 - (1 - protected-acts-unaware) * (1 - reduction-unprotected-aware)
+      set protected-acts-casual 1 - (1 - protected-acts-casual-unaware) * (1 - reduction-unprotected-aware)
+    ]
+  ]
+  [
+    set protected-acts protected-acts-unaware
+    set protected-acts-casual protected-acts-casual-unaware 
+  ]
+  
+end
+
+;; generate sexual transmission via casual sexual partner
+;; num-casual: number of casual sexual partners
+to generate-casual-sexual-transmission
+  
+  let casual-sexual-ptnr-sex 0
+  let i 0
+  while [i < num-casual]
+  [
+    let casual-sexual-ptnr-positive? false      
+    ;; determine whether casual sexual partner is HIV positive
+    ;; only determine casual sexual partner's sex/risk group when the casual sexual partner is HIV negative
+    ifelse stage >= 3 and random-float 1 <= serosorting
+    [set casual-sexual-ptnr-positive? true]
+    [
+      ;; not serosorting, determine casual partner's sex/risk group
+      if sex = 1 or sex = 4
+      [
+        ifelse random-float 1 <= perc-HET-MEN / (perc-HET-MEN + perc-IDU-MEN)
+        [
+          ;; partner is HET-male
+          set casual-sexual-ptnr-sex 2
+          if random-float 1 <= item 1 prevalence
+          [set casual-sexual-ptnr-positive? true]
+        ]
+        [
+          ;; partner is IDU-male
+          set casual-sexual-ptnr-sex 5
+          if random-float 1 <= item 4 prevalence
+          [set casual-sexual-ptnr-positive? true]
+        ]
+      ]
+      
+      if sex = 2 or sex = 5
+      [
+        ifelse random-float 1 <= perc-HET-FEM / (perc-HET-FEM + perc-IDU-FEM)
+        [
+          ;; partner is HET-female
+          set casual-sexual-ptnr-sex 1
+          if random-float 1 <= item 0 prevalence
+          [set casual-sexual-ptnr-positive? true]
+        ]
+        [
+          ;; partner is IDU-female
+          set casual-sexual-ptnr-sex 4
+          if random-float 1 <= item 3 prevalence
+          [set casual-sexual-ptnr-positive? true]
+        ]
+      ]
+      
+      if sex = 3 or sex = 6
+      [
+        ifelse bi-sexual? = true and random-float 1 <= bisexual-mix 
+        [
+          ;; casual partner is female
+          ifelse random-float 1 <= perc-HET-FEM / (perc-HET-FEM + perc-IDU-FEM)
+          [
+            ;; partner is HET-female
+            set casual-sexual-ptnr-sex 1
+            if random-float 1 <= item 0 prevalence
+            [set casual-sexual-ptnr-positive? true]
+          ]
+          [
+            ;; partner is IDU-female
+            set casual-sexual-ptnr-sex 4
+            if random-float 1 <= item 3 prevalence
+            [set casual-sexual-ptnr-positive? true]
+          ]
+        ]
+        [
+          ;; casual partner is male
+          ifelse random-float 1 <= perc-MSM / (perc-MSM + perc-IDU-MSM)
+          [
+            ;; partner is MSM
+            set casual-sexual-ptnr-sex 3
+            if random-float 1 <= item 2 prevalence
+            [set casual-sexual-ptnr-positive? true]
+          ]
+          [
+            ;; partner is IDU-MSM
+            set casual-sexual-ptnr-sex 6
+            if random-float 1 <= item 5 prevalence
+            [set casual-sexual-ptnr-positive? true]
+          ]
+        ]
+      ]
+    ]
+
+    if casual-sexual-ptnr-positive? = false 
+    [
+      ;; casual sexual transmission
+      if (sex = 3 or sex = 6) and (casual-sexual-ptnr-sex = 1 or casual-sexual-ptnr-sex = 4)
+      [
+        ;; if casual sexual partner is female
+        set trans-rate-vaginal item (sex - 2) (item (stage - 1) trans-prob-vaginal-stage); vaginal receptive probability
+        set trans-rate-anal item (sex - 2) (item (stage - 1) trans-prob-anal-stage); anal receptive probability
+        set prob-anal-sex prop-bisexual-anal
+      ]
+      
+      ;; Bernoulli model to determine whether transmission occur
+      let a ((1 - trans-rate-vaginal) ^ (num-sexual-acts-casual * (1 - prob-anal-sex) * (1 - protected-acts-casual))) * ; vaginal sex unprotected (anal insertive for MSM)
+      ((1 - (1 - condom) * trans-rate-vaginal) ^ (num-sexual-acts-casual * (1 - prob-anal-sex) * protected-acts-casual)) * ; vaginal sex protected
+      ((1 - trans-rate-anal) ^ (num-sexual-acts-casual * prob-anal-sex * (1 - protected-acts-casual))) * ; anal sex unprotected (anal receptive for MSM)
+      ((1 - (1 - condom) * trans-rate-anal) ^ (num-sexual-acts-casual * prob-anal-sex * protected-acts-casual)) ; anal sex protected
+
+;      if sex = 3
+;      [
+;        print trans-rate-vaginal
+;        print trans-rate-anal
+;        print num-sexual-acts-casual
+;        print prob-anal-sex
+;        print protected-acts-casual
+;      ]
+      
+      if random-float 1 <= 1 - a
+      [
+        set num-trans-Casual num-trans-Casual + 1     
+        if ticks > sim-dry-run
+        [
+          initialize-transmissions 3 casual-sexual-ptnr-sex 0 false
+;          let j 0
+;          while [j < 20]
+;          [
+;            if trans-year = dry-run + calibration-year - start-year + 1 and ticks <= tick-start + j * time-unit and ticks >= tick-start + (j - 1) * time-unit + 1
+;            [set num-cohort-trans replace-item j num-cohort-trans (item j num-cohort-trans + 1)]
+;            set j j + 1
+;          ]
+        ]
+      ]
+    ]
+    set i i + 1
+  ]
+  
+end
+
+;; generate needle-sharing transmission via casual needle-sharing partner
+;; num-IDU: number of casual IDU partners
+to generate-casual-needle-sharing-transmission
+     
+  let ind 0
+  let randnum 0
+  let casual-IDU-ptnr-sex 0
+  let casual-IDU-ptnr-positive? false
+  while [ind < num-IDU]
+  [
+    set randnum random-float 1
+    ifelse item 0 (item (sex - 4) IDU-sharing-ptnr-mixing) >= randnum
+    [
+      set casual-IDU-ptnr-sex 4
+      if random-float 1 <= item 3 prevalence
+      [set casual-IDU-ptnr-positive? true] 
+    ]
+    [
+      ifelse item 0 (item (sex - 4) IDU-sharing-ptnr-mixing) + item 1 (item (sex - 4) IDU-sharing-ptnr-mixing) >= randnum
+      [
+        set casual-IDU-ptnr-sex 5
+        if random-float 1 <= item 4 prevalence
+        [set casual-IDU-ptnr-positive? true]
+      ]
+      [
+        set casual-IDU-ptnr-sex 6
+        if random-float 1 <= item 5 prevalence
+        [set casual-IDU-ptnr-positive? true]
+      ]
+    ]
+    
+    ;; generate IDU transmission
+    if casual-IDU-ptnr-positive? = false 
+    [
+      if random-float 1 <= 1 - ((1 - trans-needle) ^ num-needles-shared-casual)
+      [
+        set num-trans-Needle num-trans-Needle + 1
+        if ticks > sim-dry-run
+        [
+          initialize-transmissions 4 casual-IDU-ptnr-sex 1 true
+;          let j 0
+;          while [j < 20]
+;          [
+;            if trans-year = dry-run + calibration-year - start-year + 1 and ticks <= tick-start + j * time-unit and ticks >= tick-start + (j - 1) * time-unit + 1
+;            [set num-cohort-trans replace-item j num-cohort-trans (item j num-cohort-trans + 1)]
+;            set j j + 1
+;          ]
+        ]
+      ]
+    ] 
+    set ind ind + 1
+  ]
+  
+end
+
+;; generate sexual and needle-sharing transmissions via main partner
+;; num-casual: number of casual sexual partners
+;; num-IDU: number of casual IDU partners
+;; counter-add: increment on partnership length, 1 for non-acute transmissions, 1/4 for acute transmissions
+to generate-main-transmission [counter-add]
+  
+  let ind 0
+  while [ind < length (ptnr-array)]
+  [
+    if item ind ptnr-array = 1
+    [
+      set ptnr-counter replace-item ind ptnr-counter (item ind ptnr-counter + counter-add)  
+      ;; model transmission only if partner is negative
+      if item ind ptnr-infected? = false
+      [        
+        ;; determine the number of sexual acts remain for main partners
+        let num-sexual-acts-main 0       
+        ifelse (item 0 main-ptnr-type != 1) and 
+               (item 1 main-ptnr-type != 1)
+        [
+          ;; if PLWH have sex with both partners
+          set num-sexual-acts-main 
+              (num-sexual-acts - (num-sexual-acts-casual * num-casual)) / 
+              (item 0 ptnr-array + item 1 ptnr-array)
+        ]
+        [
+          ;; if PLWH only share needles with both partners
+          ifelse (item 0 main-ptnr-type = 1) and 
+                 (item 1 main-ptnr-type = 1)
+          [set num-sexual-acts-main 0]
+          [set num-sexual-acts-main num-sexual-acts - (num-sexual-acts-casual * num-casual)]
+        ]
+        
+        ;; determine the number of IDU acts remain for main partners
+        let num-needles-shared-main 0
+        ifelse (item 0 main-ptnr-type != 0) and 
+               (item 1 main-ptnr-type != 0)
+        [
+          ;; if PLWH shares needles with both partners
+          set num-needles-shared-main 
+              (num-needles-shared - (num-needles-shared-casual * num-IDU)) / 
+              (item 0 ptnr-array + item 1 ptnr-array)
+        ]
+        [
+          ;; if PLWH only have sex with both partners
+          ifelse (item 0 main-ptnr-type = 0) and 
+                 (item 1 main-ptnr-type = 0)
+          [set num-needles-shared-main 0]
+          [set num-needles-shared-main num-needles-shared - (num-needles-shared-casual * num-IDU)]
+        ]
+        
+        ;; number of acts at least 0
+        if num-sexual-acts-main < 0
+        [set num-sexual-acts-main 0]
+        if num-needles-shared-main < 0
+        [set num-needles-shared-main 0]
+        
+        ;; main partner transmission
+        
+        let a ((1 - trans-rate-vaginal) ^ (num-sexual-acts-main * (1 - prob-anal-sex) * (1 - protected-acts))) * ; vaginal unprotected
+        ((1 - (1 - condom) * trans-rate-vaginal) ^ (num-sexual-acts-main * (1 - prob-anal-sex) * protected-acts)) * ; vaginal protected
+        ((1 - trans-rate-anal) ^ (num-sexual-acts-main * prob-anal-sex * (1 - protected-acts))) *
+        ((1 - (1 - condom) * trans-rate-anal) ^ (num-sexual-acts-main * prob-anal-sex * protected-acts)) *
+        ((1 - trans-needle) ^ num-needles-shared-main)
+        
+;        if sex = 1
+;        [
+;          print main-ptnr-sex
+;          print ptnr-length
+;          print ptnr-array
+;        ]
+   
+        if random-float 1 <= 1 - a
+        [ 
+          set ptnr-infected? replace-item ind ptnr-infected? true
+          ifelse ind = 0  
+          [set num-trans-One num-trans-One + 1]
+          [set num-trans-Two num-trans-Two + 1]
+          if ticks > sim-dry-run
+          [
+            initialize-transmissions (ind + 1) (item ind main-ptnr-sex) (item ind main-ptnr-type) (item ind main-ptnr-sharing?)
+;            let j 0
+;            while [j < 20]
+;            [
+;              if trans-year = dry-run + calibration-year - start-year + 1 and ticks <= tick-start + j * time-unit and ticks >= tick-start + (j - 1) * time-unit + 1
+;              [set num-cohort-trans replace-item j num-cohort-trans (item j num-cohort-trans + 1)]
+;              set j j + 1
+;            ]
+          ]          
+        ]        
+      ]        
+    ]    
+    set ind ind + 1
+  ]
+  
+end

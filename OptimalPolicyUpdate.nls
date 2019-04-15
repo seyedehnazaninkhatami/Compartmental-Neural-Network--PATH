@@ -1,0 +1,1066 @@
+;; Finding Optimal Policy Path after Optimization has been finished!
+
+extensions [matrix
+  csv]
+
+to OptPolicy
+  let ph 6        ;[0 0.001 0.002 0.003 0.004 0.005]
+  let pm 11       ;[0 0.001 0.002 0.003 0.004 0.005 0.006 0.007 0.008 0.009 0.1]
+  let uh 3        ;[0.1 0.125 0.15]
+  let um 4        ;[0.1 0.125 0.15 0.175]
+  let vh 4        ;[0.5 0.6 0.7 0.8]
+  let vm 4        ;[0.5 0.6 0.7 0.8]
+  let l (ph * pm * uh * um * vh * vm)
+
+  set prev_HET_range [0 0.001 0.002 0.003 0.004 0.005]
+  set prev_MSM_range [0 0.001 0.002 0.003 0.004 0.005 0.006 0.007 0.008 0.009]
+
+  set unaware_HET_range [0.1 0.125 0.15]
+  set unaware_MSM_range [0.1 0.125 0.15 0.175]
+
+  set VLS_HET_range [0.5 0.6 0.7 0.8]
+  set VLS_MSM_range [0.5 0.6 0.7 0.8]
+
+  let a_uh 2
+  let a_um 2
+  let a_vh 3
+  let a_vm 3
+  let u (a_uh * a_um * a_vh * a_vm)
+
+  ;let prev_HET 0
+  let k 1
+  let kmax 100
+  set QlearningStage 1
+  let stageMax 11
+  let interval 5
+  let OptimalPolicyMatrix matrix:make-constant (kmax * (stageMax + 1)) 37 1
+  let CategorizationMatrix matrix:make-constant (kmax * (stageMax + 1)) 10 1
+  let numNewInfBySexMatrix matrix:make-constant (kmax * stageMax * interval) 7 -10
+  let TestingFreqMatrix matrix:make-constant (kmax * (stageMax + 1)) 21 1
+  let oldMatrix matrix:make-constant (kmax * stageMax * interval) 4 -10
+  let Qoptimal matrix:make-constant (kmax * (stageMax + 1)) 1 -5
+
+
+  ;  set sim-dry-run 101 ;; for behavior
+  ;  initialize-output
+  ;  setup-globals
+
+  carefully [file-delete "OptimalPolicy.csv"] []
+  ;  carefully [file-delete "results-partners.csv"] []
+  ;  carefully [file-delete "results-PLWH-one.csv"] []
+  ;  carefully [file-delete "results-new-infections-one.csv"] []
+  ;  carefully [file-delete "World-Results-0.csv"][]
+  ;  carefully [file-delete "World-Results-sim-dry-run.csv"][]
+  ;  carefully [file-delete "World-Results-EndofDryRun.csv"][]
+  carefully [file-delete "OptimalPolicy_numNewInfBySex.csv"][]
+  carefully [file-delete "Qoptimal.csv"][]
+  carefully [file-delete "Distribution.csv"][]
+  carefully [file-delete "TestingFreq.csv"][]
+
+  ;
+  ;  setup
+  ;  reset-ticks
+  ;  repeat maxTicks [go];; RUNS UNTIL 2015 (Just before Optimization)
+  ;                      ;print ticks
+  ;
+  ;
+  ;
+  ;  export-world "World-Result.csv"
+  while [k <= kmax]
+  [
+    ;    set sim-dry-run 101 ;; for behavior
+    ;    initialize-output
+    ;    setup-globals
+    ;
+    ;    carefully [file-delete "OptimalPolicy.csv"] []
+    ;    carefully [file-delete "results-partners.csv"] []
+    ;    carefully [file-delete "results-PLWH-one.csv"] []
+    ;    carefully [file-delete "results-new-infections-one.csv"] []
+    ;    carefully [file-delete "World-Results-0.csv"][]
+    ;    carefully [file-delete "World-Results-sim-dry-run.csv"][]
+    ;    carefully [file-delete "World-Results-EndofDryRun.csv"][]
+    ;
+    ;    setup
+    ;    reset-ticks
+    ;    repeat maxTicks [go];; RUNS UNTIL 2015 (Just before Optimization)
+    ;                        ;print ticks
+    import-world "World-Result.csv"
+    ;print(word"2015:" prevalence)
+    random-seed new-seed
+    set populationQALY sum [QALYs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1] + ((num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0] - deadDifference) * 1 ;; should be infected or all population?
+    set populationQALY populationQALY * interval
+    ;print populationQALY
+    set populationCosts sum [costs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]
+    set populationCosts populationCosts * interval * time-unit
+    ;print (word "populationQALY :" populationQALY)
+    ;print (word "populationCosts :" populationCosts)
+    let people-number num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM
+    set births-HET-FEM perc-HET-FEM * people-number * 12.4 / 1000;;birth rate = 12.4 births per 1000 people in one year
+    set births-HET-MEN births-HET-FEM
+    set births-MSM perc-MSM * people-number * 12.4 / 1000
+    set births-IDU-FEM perc-IDU-FEM * people-number * 12.4 / 1000
+    set births-IDU-MEN perc-IDU-MEN * people-number * 12.4 / 1000
+    set births-IDU-MSM perc-IDU-MSM * people-number * 12.4 / 1000
+    ;let prev_HET 0
+    ;let prev_MSM 0
+    let CD4diag_HET 0
+    let CD4diag_MSM 0
+    let CD4diag_IDUHET 0
+    let CD4diag_IDUMSM 0
+
+    set death count people with [infected? = true and dead = 1]
+    ;let pop (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0] - death ;; should be infected or all population?
+    ;print death
+    set previous_death death
+    ;;Initial State
+;    let CD4diag_HET median [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 3]
+;    let CD4diag_MSM median [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 3]
+
+    ;    let CD4diag_HET mean [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3]
+    ;    let CD4diag_MSM mean [CD4-diagnosis] of people with [infected? = true and dead = 0 and sex = 3 and stage >= 3]
+
+    ;; Calculating prev_HET & prev_MSM
+    let prev_HET_step 1000
+    let prev_MSM_step 1000
+
+    let prev_HET (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+    ;print(word "prev_HET before rounding:" prev_HET)
+    let prev_HET_unrounded prev_HET
+    set prev_HET round (prev_HET * prev_HET_step) / prev_HET_step
+    ;print (word "prev_HET after rounding:"prev_HET)
+
+    let prev_MSM (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+    ;print (word "prev_MSM before rounding:"prev_MSM)
+    let prev_MSM_unrounded prev_MSM
+    set prev_MSM round (prev_MSM * prev_MSM_step) / prev_MSM_step
+    ;print (word "prev_MSM after rounding:"prev_MSM)
+
+
+    ;; Calculating prev_HET_index & prev_MSM_index
+    set prev_HET_index position prev_HET prev_HET_range ;; gives the prev_HET_index
+                                                        ;print (word "prev_HET_index:"prev_HET_index)
+    set prev_MSM_index position prev_MSM prev_MSM_range ;; gives the prev_MSM_index
+                                                        ;print (word "prev_MSM_index:prev_MSM_index")
+
+
+    set unaware_HET (count people with [infected? = true and dead = 0 and aware? = False and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+    ;print(word "unaware_HET before rounding:" unaware_HET)
+    let unaware_HET_unrounded unaware_HET
+    set unaware_MSM count people with [infected? = true and dead = 0 and aware? = False and (sex = 3 or sex = 6) and stage <= 2] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+    ;print (word "unaware_MSM before rounding:"unaware_MSM)
+    let unaware_MSM_unrounded unaware_MSM
+
+
+    ; {10%, 12.5%, 15%}
+
+    ifelse unaware_HET < 0.1125 and unaware_HET > 0.0875
+    [set unaware_HET 0.1
+      set unaware_HET_index 0]
+    [ifelse unaware_HET < 0.1375 and unaware_HET > 0.1125
+      [set unaware_HET 0.125
+        set unaware_HET_index 1]
+      [if unaware_HET < 0.1625 and unaware_HET > 0.1375
+        [set unaware_HET 0.15
+          set unaware_HET_index 2]]]
+
+    ;print (word "unaware_HET_rounded: "unaware_HET)
+    ;print (word "unaware_HET_index: "unaware_HET_index)
+
+
+    ifelse unaware_MSM < 0.1125 and unaware_MSM > 0.0875
+    [set unaware_MSM 0.1
+      set unaware_MSM_index 0]
+    [ifelse unaware_MSM < 0.1375 and unaware_MSM > 0.1125
+      [set unaware_MSM 0.125
+        set unaware_MSM_index 1]
+      [ifelse unaware_MSM < 0.1625 and unaware_MSM > 0.1375
+        [set unaware_MSM 0.15
+          set unaware_MSM_index 2]
+        [if unaware_MSM < 0.1875 and unaware_MSM > 0.1625
+          [set unaware_MSM 0.175
+            set unaware_MSM_index 3]]]]
+    ;print (word "unaware_MSM_rounded:"unaware_MSM)
+    ;print (word "unaware_MSM_index:"unaware_MSM_index)
+
+
+    let VLS_interval 10
+    ;let VLS_step 10
+    ;; VLS_HET = (HET diagnosed with HIV with VLS) / (HET diagnosed with HIV)
+    set VLS_HET count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+    ;print (word "VLS_HET before rounding:"VLS_HET)
+    let VLS_HET_unrounded VLS_HET
+    set VLS_HET round (VLS_HET * VLS_interval) / VLS_interval
+
+    ;set VLS_HET round (VLS_HET * VLS_step) / VLS_step
+    ;set VLS_HET floor (VLS_HET * VLS_step) / VLS_step
+    ;print (word "VLS_HET_rounded:"VLS_HET)
+
+    ;; VLS_MSM = (MSM diagnosed with HIV with VLS) / (MSM diagnosed with HIV)
+    set VLS_MSM count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+    ; print (word "VLS_MSM before rounding:"VLS_MSM)
+    let VLS_MSM_unrounded VLS_MSM
+    set VLS_MSM round (VLS_MSM * VLS_interval) / VLS_interval
+    ;set VLS_MSM round (VLS_MSM * VLS_step) / VLS_step
+    ;set VLS_MSM floor (VLS_MSM * VLS_step) / VLS_step
+    ;print (word "VLS_MSM_rounded:"VLS_MSM)
+
+    set VLS_HET_index position VLS_HET VLS_HET_range ;; gives the VLS_HET_index
+    set VLS_MSM_index position VLS_MSM VLS_MSM_range ;; gives the VLS_MSM_index
+
+
+    set InitialState (list (prev_HET) (prev_MSM) (unaware_HET) (unaware_MSM) (VLS_HET) (VLS_MSM))
+    ;print(word "InitialState:" InitialState)
+    set CurrentState InitialState
+    ;print(word "CurrentState:" CurrentState)
+
+
+    ;;;;;; Calculating initial distributions based on CDC favorable risk group categorization ;;;;;
+    let prev_IDU (count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+    let prev_Nhet (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+    let prev_NMSM (count people with [infected? = true and dead = 0 and sex = 3 and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+    ;print prev_NMSM
+    let unaware_IDU (count people with [infected? = true and dead = 0 and aware? = False and (sex = 4 or sex = 5 or sex = 6) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 1])
+    let unaware_Nhet (count people with [infected? = true and dead = 0 and aware? = False and (sex = 1 or sex = 2) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 1])
+    let unaware_NMSM (count people with [infected? = true and dead = 0 and aware? = False and sex = 3 and stage <= 2]) / (count people with [infected? = true and dead = 0 and sex = 3 and stage >= 1])
+
+    let VLS_IDU count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 1])
+    let VLS_Nhet count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 1])
+    let VLS_NMSM count people with [infected? = true and dead = 0 and sex = 3 and stage = 6] / (count people with [infected? = true and dead = 0 and sex = 3 and stage >= 1])
+
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 0 0
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 1 prev_IDU
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 2 prev_Nhet
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 3 prev_NMSM
+
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 4 unaware_IDU
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 5 unaware_Nhet
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 6 unaware_NMSM
+
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 7 VLS_IDU
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 8 VLS_Nhet
+    matrix:set CategorizationMatrix ((k - 1) * (stageMax + 1)) 9 VLS_NMSM
+
+
+
+    ;print (word "VLS_HET_index:"VLS_HET_index)
+    ;print (word "VLS_MSM_index:"VLS_MSM_index)
+    set InitialState (list (prev_HET) (prev_MSM) (unaware_HET) (unaware_MSM) (VLS_HET) (VLS_MSM))
+    ;print(word"Initial State:"InitialState)
+
+    ;print(word "InitialState:" InitialState)
+    set CurrentState InitialState
+    ;print(word "CurrentState:" CurrentState)
+
+    set InitialStateIndex (prev_HET_index * pm * uh * um * vh * vm) + (prev_MSM_index * uh * um * vh * vm) + (unaware_HET_index * um * vh * vm) + (unaware_MSM_index * vh * vm) + (VLS_HET_index * vm) + (VLS_MSM_index) ;+ (QlearningStage - 1) * (l + 1))  ;; gives the row of Qmatrix
+                                                                                                                                                                                                                         ;print (word "InitialStateIndex:" InitialStateIndex)
+    set CurrentStateIndex InitialStateIndex
+    ;print (word "CurrentStateIndex:" CurrentStateIndex)
+
+
+    if QlearningStage = stageMax + 1
+    [set QlearningStage 1
+      set CurrentState Initialstate
+      set CurrentStateIndex InitialStateIndex]
+    
+    set ActionDataRowInitial num-year-trans - dry-run
+
+    set unaware_matrix_row 0
+    while [unaware_matrix_row <= 0]
+    [matrix:set matrix_unaware ActionDataRowInitial + unaware_matrix_row 0 item 2 InitialState
+      matrix:set matrix_unaware ActionDataRowInitial + unaware_matrix_row 1 item 2 InitialState
+      matrix:set matrix_unaware ActionDataRowInitial + unaware_matrix_row 2 item 3 InitialState
+      ;print(word "year"(ActionDataRowInitial + unaware_matrix_row))
+      ;print(word "5 year matrix unaware initial:" matrix:get-row matrix_unaware (ActionDataRowInitial + unaware_matrix_row))
+      set unaware_matrix_row unaware_matrix_row + 1]
+    set current_unaware matrix:get-row matrix_unaware ActionDataRowInitial
+
+    set ARTVLS_matrix_row 0
+    while [ARTVLS_matrix_row <= 0]
+    [matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 0 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 1 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 2 item 5 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 3 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 4 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 5 item 5 InitialState
+      ;print(word "year"(ActionDataRowInitial + ARTVLS_matrix_row))
+      ;print(word "5 year matrix ARTVLS initial:" matrix:get-row matrix_ARTVLS (ActionDataRowInitial + ARTVLS_matrix_row))
+      set ARTVLS_matrix_row ARTVLS_matrix_row + 1]
+    set current_ARTVLS matrix:get-row matrix_ARTVLS ActionDataRowInitial
+
+
+
+    ;    set nocare_matrix_row 0
+    ;    while [nocare_matrix_row <= 0]
+    ;    [ matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 0 (1 - (item 0 current_unaware + item 0 current_ARTVLS))
+    ;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 1 (1 - (item 1 current_unaware + item 1 current_ARTVLS))
+    ;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 2 (1 - (item 2 current_unaware + item 2 current_ARTVLS))
+    ;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 3 (1 - (item 3 current_unaware + item 3 current_ARTVLS))
+    ;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 4 (1 - (item 4 current_unaware + item 4 current_ARTVLS))
+    ;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 5 (1 - (item 5 current_unaware + item 5 current_ARTVLS))
+    ;
+    ;      ;print(word "year"(ActionDataRowInitial + nocare_matrix_row))
+    ;      ;print(word "5 year matrix nocare initial:" matrix:get-row matrix_nocare (ActionDataRowInitial + nocare_matrix_row))
+    ;      set nocare_matrix_row nocare_matrix_row + 1]
+    ;  set previous_nocare matrix:get-row matrix_nocare ActionDataRowInitial
+    ;   print(word "previous_nocare:" previous_nocare)
+
+    set previous_unaware matrix:get-row matrix_unaware ActionDataRowInitial
+    ;print(word "previous_unaware:" previous_unaware)
+    set previous_ARTVLS matrix:get-row matrix_ARTVLS ActionDataRowInitial
+    ;print(word "previous_ARTVLS:" previous_ARTVLS)
+    ;; Finding Optimal Policy for Initial State
+
+
+
+    let Qmat csv:from-file "QMatrix.csv"
+
+    set PolicyMat csv:from-file "policy.csv"
+    set matrix_policy matrix:from-row-list PolicyMat
+    ;print(word "matrix:dimension: " matrix:dimensions matrix_policy)
+    set CurrentOptimalPolicy matrix:get-row matrix_policy CurrentStateIndex
+    ;print(word "CurrentOptimalPolicy:" CurrentOptimalPolicy)
+
+    set unaware_change_HET item 9 CurrentOptimalPolicy
+    set unaware_change_MSM item 10 CurrentOptimalPolicy
+
+    set ARTVLS_change_HET item 11 CurrentOptimalPolicy
+    set ARTVLS_change_MSM item 12 CurrentOptimalPolicy
+
+    ;    print(word"initial u_h:" unaware_change_HET)
+    ;    print(word"initial u_m:" unaware_change_MSM)
+    ;    print(word"initial v_h:" ARTVLS_change_HET)
+    ;    print(word"initial v_m:" ARTVLS_change_MSM)
+
+    set populationQALY sum [QALYs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1] + ((num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0] - deadDifference) * 1 ;; should be infected or all population?
+    set populationQALY populationQALY * interval
+    ;print populationQALY
+    set populationCosts sum [costs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]
+    set populationCosts populationCosts * interval * time-unit
+    ;print (word "populationQALY :" populationQALY)
+    ;print (word "populationCosts :" populationCosts)
+
+    ;; CD4 diag distribution for HET non-IDU
+    ;set sum-val count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit]
+    let CD4diag_HET_1 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_HET_2 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_HET_3 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_HET_4 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+
+    ;; CD4 diag distribution for MSM non_IDU
+    ;set sum-val count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit]
+    let CD4diag_MSM_1 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_MSM_2 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_MSM_3 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_MSM_4 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+
+    ;; CD4 diag distribution for IDU Fem and Men
+    let CD4diag_IDUFM_1 count people with [infected? = true and (sex = 4 and sex = 5) and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_IDUFM_2 count people with [infected? = true and (sex = 4 and sex = 5) and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_IDUFM_3 count people with [infected? = true and (sex = 4 and sex = 5) and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_IDUFM_4 count people with [infected? = true and (sex = 4 and sex = 5) and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+
+    ;; CD4 diag distribution for IDU MSM
+    let CD4diag_IDUMSM_1 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_IDUMSM_2 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_IDUMSM_3 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let CD4diag_IDUMSM_4 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+
+
+    let time-inf-to-diag_HET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let time-inf-to-diag_MSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let time-inf-to-diag_IDUMSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let time-inf-to-diag_IDUHET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    ;let time-inf-to-diag_IDU median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    ;
+
+    let time-inf-to-diag_total 0
+    let CD4diag_total 0
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_total 100]
+      [set time-inf-to-diag_total median [time-inf-to-diag] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+
+      ifelse empty? [CD4-diagnosis] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set CD4diag_total 0]
+      [set CD4diag_total median [CD4-diagnosis] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+;    print(word"time-inf-to-diag-HET_mean:" time-inf-to-diag_HET)
+;    print(word"time-inf-to-diag-MSM_mean:" time-inf-to-diag_MSM)
+;    print(word"time-inf-to-diag-IDUHET_mean:" time-inf-to-diag_IDUHET)
+;    print(word"time-inf-to-diag-IDUMSM_mean:" time-inf-to-diag_IDUMSM)
+    ;     print(word"time-inf-to-diag-IDU_mean:" time-inf-to-diag_IDU)
+
+
+    let time-inf-to-diag_nHET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let time-inf-to-diag_nMSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+    let time-inf-to-diag_IDU median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+
+    
+;      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+;      [set time-inf-to-diag_nHET 100]
+;      [set time-inf-to-diag_nHET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+;
+;      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+;      [set time-inf-to-diag_nMSM 100]
+;      [set time-inf-to-diag_nMSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+;
+;      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+;      [set time-inf-to-diag_IDU 100]
+;      [set time-inf-to-diag_IDU median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+;
+;    
+    
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 0 0
+
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 1 CD4diag_HET
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 2 age-at-infection_HET
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 3 age-diag_HET
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 4 testing_frequency_HET
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 2 time-inf-to-diag_HET
+
+     ; matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 3 CD4diag_MSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 7 age-at-infection_MSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 8 age-diag_MSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 9 testing_frequency_MSM
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 4 time-inf-to-diag_MSM
+
+    ;  matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 5 CD4diag_IDUHET
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 12 age-at-infection_IDUHET
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 13 age-diag_IDUHET
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 14 testing_frequency_IDUHET
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 6 time-inf-to-diag_IDUHET
+
+     ; matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 7 CD4diag_IDUMSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 17 age-at-infection_IDUMSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 18 age-diag_IDUMSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 19 testing_frequency_IDUMSM
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 8 time-inf-to-diag_IDUMSM
+
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 9 time-inf-to-diag_nHET
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 10 time-inf-to-diag_IDU
+      matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 11 time-inf-to-diag_nMSM
+
+
+     matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) + 1 0 1
+    
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 1 CD4diag_HET
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 2 age-at-infection_HET
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 3 age-diag_HET
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 4 testing_frequency_HET
+    matrix:set TestingFreqMatrix((k - 1) * (stageMax + 1)) 2 time-inf-to-diag_HET
+    
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 3 CD4diag_MSM
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 7 age-at-infection_MSM
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 8 age-diag_MSM
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 9 testing_frequency_MSM
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 4 time-inf-to-diag_MSM
+    
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 5 CD4diag_IDUHET
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 12 age-at-infection_IDUHET
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 13 age-diag_IDUHET
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 14 testing_frequency_IDUHET
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 6 time-inf-to-diag_IDUHET
+    
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 7 CD4diag_IDUMSM
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 17 age-at-infection_IDUMSM
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 18 age-diag_IDUMSM
+    ;matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 19 testing_frequency_IDUMSM
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 8 time-inf-to-diag_IDUMSM
+    
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 9 CD4diag_total
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 10 time-inf-to-diag_total
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 11 time-inf-to-diag_nHET
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 12 time-inf-to-diag_MSM
+    matrix:set TestingFreqMatrix ((k - 1) * (stageMax + 1)) 13 time-inf-to-diag_IDU
+    
+    
+    let GDP 54000
+    set immediatereward (populationQALY * GDP) - populationCosts
+
+
+    set action_unaware_HET_range [0 -0.025]
+    set action_unaware_MSM_range [0 -0.025]
+
+    set action_VLS_HET_range [0 0.1 0.2]
+    set action_VLS_MSM_range [0 0.1 0.2]
+
+    set action_unaware_HET_index position unaware_change_HET action_unaware_HET_range
+    set action_unaware_MSM_index position unaware_change_MSM action_unaware_MSM_range
+    set action_VLS_HET_index position ARTVLS_change_HET action_VLS_HET_range
+    set action_VLS_MSM_index position ARTVLS_change_MSM action_VLS_MSM_range
+
+    set CurrentActionIndex (action_unaware_HET_index * a_um * a_vh * a_vm) + (action_unaware_MSM_index * a_vh * a_vm) + (action_VLS_HET_index * a_vm) + (action_VLS_MSM_index) ;+ 1 ;; gives the column of the Qmatrix
+
+    matrix:set Qoptimal ((k - 1) * (stageMax + 1)) 0 InitialStateIndex
+
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 0 0
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 1 item 0 InitialState
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 2 item 1 InitialState
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 3 item 2 InitialState
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 4 item 3 InitialState
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 5 item 4 InitialState
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 6 item 5 InitialState
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 7 prev_HET_unrounded
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 8 prev_MSM_unrounded
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 9 unaware_HET_unrounded
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 10 unaware_MSM_unrounded
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 11 VLS_HET_unrounded
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 12 VLS_MSM_unrounded
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 13 CurrentActionIndex
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 14 unaware_change_HET
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 15 unaware_change_MSM
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 16 ARTVLS_change_HET
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 17 ARTVLS_change_MSM
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 18 populationQALY
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 19 populationCosts
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 20 immediatereward
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 21 CD4diag_HET_1
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 22 CD4diag_HET_2
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 23 CD4diag_HET_3
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 24 CD4diag_HET_4
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 25 CD4diag_MSM_1
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 26 CD4diag_MSM_2
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 27 CD4diag_MSM_3
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 28 CD4diag_MSM_4
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 29 CD4diag_IDUFM_1
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 30 CD4diag_IDUFM_2
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 31 CD4diag_IDUFM_3
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 32 CD4diag_IDUFM_4
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 33 CD4diag_IDUMSM_1
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 34 CD4diag_IDUMSM_2
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 35 CD4diag_IDUMSM_3
+    matrix:set OptimalPolicyMatrix ((k - 1) * (stageMax + 1)) 36 CD4diag_IDUMSM_4
+    ;    let year (ticks - 2 - sim-dry-run - time-unit * num-year-trans) / time-unit
+    ;    ;print ticks
+    ;    print(word"year: "year)
+    ;    let newly-infected people with [infected? = true and trans-year = ceiling((ticks - 2 - sim-dry-run) / time-unit)]
+    ;    ;print(word"newly-infected: "newly-infected)
+    ;    let num-new-infections-this-year count newly-infected
+    ;    ; print(word"num-new-infections-this-year: "num-new-infections-this-year)
+    ;    ;; f and m separate
+    ;    let num-new-HETFem-this-year count newly-infected with [sex = 1]
+    ;    let num-new-HETMale-this-year count newly-infected with [sex = 2]
+    ;    let num-new-MSM-this-year count newly-infected with [sex = 3]
+    ;
+    ;    matrix:set numNewInfBySexMatrix (k - 1 ) * (stagemax * interval) + year 0 year
+    ;    matrix:set numNewInfBySexMatrix (k - 1 ) * (stagemax * interval) + year  1 num-new-HETFem-this-year
+    ;    matrix:set numNewInfBySexMatrix (k - 1 ) * (stagemax * interval) + year 2 num-new-HETMale-this-year
+    ;    matrix:set numNewInfBySexMatrix (k - 1 ) * (stagemax * interval) + year  3 num-new-MSM-this-year
+    ;
+    while [QlearningStage <= stageMax]
+    [
+      ;print(word"Start of Qlearning:"QlearningStage)
+      set ActionDataRow num-year-trans - dry-run + (QlearningStage - 1) * interval + 1
+      set previous_unaware matrix:get-row matrix_unaware (ActionDataRow - 1)
+      ;print(word "previous_unaware:"previous_unaware)
+      set previous_ARTVLS matrix:get-row matrix_ARTVLS (ActionDataRow - 1)
+      ;print(word "previous_ARTVLS:"previous_ARTVLS)
+
+
+      if item 0 previous_unaware + unaware_change_HET <= 0.099999
+      [set unaware_change_HET 0]
+      if item 2 previous_unaware + unaware_change_MSM <= 0.099999
+      [set unaware_change_MSM 0]
+
+      set unaware_change_HET unaware_change_HET / interval
+      set unaware_change_MSM unaware_change_MSM / interval
+      
+      set unaware_matrix_row 0
+      while [unaware_matrix_row <= 4]
+      [ matrix:set matrix_unaware ActionDataRow + unaware_matrix_row 0 (item 0 previous_unaware + unaware_change_HET * (unaware_matrix_row + 1))
+        matrix:set matrix_unaware ActionDataRow + unaware_matrix_row 1 (item 1 previous_unaware + unaware_change_HET * (unaware_matrix_row + 1))
+        matrix:set matrix_unaware ActionDataRow + unaware_matrix_row 2 (item 2 previous_unaware + unaware_change_MSM * (unaware_matrix_row + 1))
+
+        ;print(word "year"(ActionDataRow + unaware_matrix_row))
+        ;print(word "5 year matrix unaware:" matrix:get-row matrix_unaware (ActionDataRow + unaware_matrix_row))
+        set unaware_matrix_row unaware_matrix_row + 1]
+
+      set current_unaware matrix:get-row matrix_unaware ActionDataRow
+
+      ifelse item 0 previous_ARTVLS + ARTVLS_change_HET >= 0.80001
+      [set ARTVLS_change_HET 0]
+      [set ARTVLS_change_HET ARTVLS_change_HET / interval]
+
+      ifelse item 2 previous_ARTVLS + ARTVLS_change_MSM >= 0.80001
+      [set ARTVLS_change_MSM 0]
+      [set ARTVLS_change_MSM ARTVLS_change_MSM / interval]
+
+
+      set ARTVLS_matrix_row 0
+      while [ARTVLS_matrix_row <= 4]
+      [ matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 0 (item 0 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 1 (item 1 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 2 (item 2 previous_ARTVLS + ARTVLS_change_MSM * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 3 (item 3 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 4 (item 4 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 5 (item 5 previous_ARTVLS + ARTVLS_change_MSM * (ARTVLS_matrix_row + 1))
+        ;print(word "year"(ActionDataRow + ARTVLS_matrix_row))
+        ;print(word "5 year matrix ARTVLS:" matrix:get-row matrix_ARTVLS (ActionDataRow + ARTVLS_matrix_row))
+        set ARTVLS_matrix_row ARTVLS_matrix_row + 1]
+
+      set current_ARTVLS matrix:get-row matrix_ARTVLS ActionDataRow
+
+      ;      set nocare_matrix_row 0
+      ;      while [nocare_matrix_row <= 4]
+      ;      [matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 0 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 0)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 0)))
+      ;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 1 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 1)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 1)))
+      ;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 2 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 2)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 2)))
+      ;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 3 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 3)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 3)))
+      ;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 4 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 4)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 4)))
+      ;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 5 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 5)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 5)))
+      ;        ;print(word "year"(ActionDataRow + ARTVLS_matrix_row))
+      ;        ;print(word "5 year matrix nocare:" matrix:get-row matrix_nocare (ActionDataRow + nocare_matrix_row))
+      ;        set nocare_matrix_row nocare_matrix_row + 1]
+
+      set populationCosts 0
+      set populationQALY 0
+
+      repeat 5 [
+        repeat 12 [go
+          set populationCosts populationCosts + sum [costs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]
+          ;print(word "costs:"populationCosts)
+        ]
+        ;set num-sex 6
+        ;let mat matrix:make-constant maxYear maxRun 0
+        ;        let mat matrix:make-constant maxYear (maxRun * num-sex) 0
+        ;        set numNewInfBySex matrix:copy mat
+;        set death count people with [infected? = true and dead = 1]
+;        set deadDifference death - previous_death
+        set populationQALY populationQALY + (sum [QALYs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]) + ((num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0]) * 1 ;; should be infected or all population?
+        ;set populationQALY1 populationQALY1 + (sum [QALYs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]) + ((num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0] - deadDifference) * 1 ;; should be infected or all population?
+        let pop num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM
+        ;        print(word"pop:" pop)
+        ;        print(word"dead diff:" deadDifference)
+        ;        let inf count people with [infected? = true and dead = 0]
+        ;        print(word"inf:" inf)
+        ;print(word"populationQALY:" populationQALY)
+        let year (ticks - 2 - sim-dry-run - time-unit * num-year-trans) / time-unit
+        ;print ticks
+        ;print(word"year: "year)
+        set newly-infected people with [infected? = true and trans-year = ceiling((ticks - 2 - sim-dry-run) / time-unit)]
+        ;print(word"newly-infected: "newly-infected)
+        let num-new-infections-this-year count newly-infected
+        ; print(word"num-new-infections-this-year: "num-new-infections-this-year)
+        ;; f and m separate
+        let num-new-HETFem-this-year count newly-infected with [sex = 1]
+        let num-new-HETMale-this-year count newly-infected with [sex = 2]
+        let num-new-MSM-this-year count newly-infected with [sex = 3]
+        let num-new-IDUFem-this-year count newly-infected with [sex = 4]
+        let num-new-IDUMen-this-year count newly-infected with [sex = 5]
+        let num-new-IDUMSM-this-year count newly-infected with [sex = 6]
+
+
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 0 year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 1 num-new-HETFem-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 2 num-new-HETMale-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 3 num-new-MSM-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 4 num-new-IDUFem-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 5 num-new-IDUMen-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 6 num-new-IDUMSM-this-year
+        ;
+        ;        set j j + 1]
+
+;        let deathrate (deadDifference / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)) * 1000 ;;death rate
+;        set previous_death death
+
+;        let old1 count people with [infected? = true and age > 30 and dead = 0]
+;        let old2 count people with [infected? = true and age > 80 and dead = 0]
+;
+;        matrix:set oldMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 0 year
+;        matrix:set oldMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 1 old1
+;        matrix:set oldMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 2 old2
+;        matrix:set oldMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 3 deathrate
+      ]
+ 
+
+
+
+      ;; CD4 diag distribution for HET
+      ;set sum-val count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit]
+      set CD4diag_HET_1 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_HET_2 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_HET_3 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_HET_4 count people with [infected? = true and sex <= 2 and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+
+      ;; CD4 diag distribution for MSM
+      ;set sum-val count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit]
+      set CD4diag_MSM_1 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_MSM_2 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_MSM_3 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_MSM_4 count people with [infected? = true and sex = 3 and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+
+      ;; CD4 diag distribution for IDU Fem and Men
+      set CD4diag_IDUFM_1 count people with [infected? = true and (sex = 4 or sex = 5) and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_IDUFM_2 count people with [infected? = true and (sex = 4 or sex = 5) and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_IDUFM_3 count people with [infected? = true and (sex = 4 or sex = 5) and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_IDUFM_4 count people with [infected? = true and (sex = 4 or sex = 5) and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      ;print(word"CD4IDUMSM: "CD4diag_IDUFM_4)
+
+      ;; CD4 diag distribution for IDU MSM
+      set CD4diag_IDUMSM_1 count people with [infected? = true and sex = 6 and stage >= 3 and CD4-diagnosis <= 200 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_IDUMSM_2 count people with [infected? = true and sex = 6 and stage >= 3 and CD4-diagnosis > 200 and CD4-diagnosis <= 350 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_IDUMSM_3 count people with [infected? = true and sex = 6 and stage >= 3 and CD4-diagnosis > 350 and CD4-diagnosis <= 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      set CD4diag_IDUMSM_4 count people with [infected? = true and sex = 6 and stage >= 3 and CD4-diagnosis > 500 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      ;print(word"CD4IDUMSM: "CD4diag_IDUMSM_4)
+
+
+
+
+      ifelse empty? [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set CD4diag_HET 0]
+      [set CD4diag_HET median [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set CD4diag_MSM 0]
+      [set CD4diag_MSM median [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+
+      ifelse empty? [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set CD4diag_IDUHET 0]
+      [set CD4diag_IDUHET median [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+
+      ifelse empty? [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set CD4diag_IDUMSM 0]
+      [set CD4diag_IDUMSM median [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+
+      ; set time-inf-to-diag_IDU median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+;    print(word"CD4diag_HET_median:" CD4diag_HET)
+;    print(word"CD4diag_MSM_median:" CD4diag_MSM)
+;    print(word"CD4diag_IDUHET_median:" CD4diag_IDUHET)
+;    print(word"CD4diag_IDUMSM_median:" CD4diag_IDUMSM)
+
+
+    ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_HET 0]
+      [set time-inf-to-diag_HET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+    ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_MSM 0]
+      [set time-inf-to-diag_MSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+;    print(word"time-inf-to-diag-HET_median:" time-inf-to-diag_HET)
+;    print(word"time-inf-to-diag-MSM_median:" time-inf-to-diag_MSM)
+
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_IDUMSM 0]
+      [set time-inf-to-diag_IDUMSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_IDUHET 0]
+      [set time-inf-to-diag_IDUHET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_total 0]
+      [set time-inf-to-diag_total median [time-inf-to-diag] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+
+      ifelse empty? [CD4-diagnosis] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set CD4diag_total 0]
+      [set CD4diag_total median [CD4-diagnosis] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]]
+
+
+  
+     let HET_FEM_risk_factor 0.062
+      let HET_MEN_risk_factor 0.105
+      let MSM_risk_factor 1
+      let IDU_risk_factor 1
+      let HIV_negative_testing_cost 42
+
+
+       ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_nHET 100]
+      [set time-inf-to-diag_nHET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_nMSM 100]
+      [set time-inf-to-diag_nMSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval]
+      [set time-inf-to-diag_IDU 100]
+      [set time-inf-to-diag_IDU median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+
+ let HIV_negative_cost_HET (( (num-HET-FEM * HET_FEM_risk_factor) + (num-HET-MEN * HET_MEN_risk_factor)) * (1 / factor) - count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+        * HIV_negative_testing_cost * interval / time-inf-to-diag_nHET
+
+        let HIV_negative_cost_MSM ((num-MSM) - count people with [infected? = true and dead = 0 and (sex = 3) and stage >= 1]) * HIV_negative_testing_cost * interval / time-inf-to-diag_nMSM
+
+        let HIV_negative_cost_IDU ((num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0 and (sex = 4  or sex = 5 or sex = 6) and stage >= 1])
+          * HIV_negative_testing_cost * interval / time-inf-to-diag_IDU
+
+        set populationCosts populationCosts + HIV_negative_cost_HET + HIV_negative_cost_MSM + HIV_negative_cost_IDU
+; 
+       ;let GDP 54000
+      set immediatereward (populationQALY * GDP) - populationCosts  ;;
+     
+      
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 0 QlearningStage
+
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 1 CD4diag_HET
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 2 age-at-infection_HET
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 3 age-diag_HET
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 4 testing_frequency_HET
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 2 time-inf-to-diag_HET
+
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 3 CD4diag_MSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 6 age-at-infection_MSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 7 age-diag_MSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 8 testing_frequency_MSM
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 4 time-inf-to-diag_MSM
+
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 5 CD4diag_IDUHET
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 14 age-at-infection_IDUHET
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 15 age-diag_IDUHET
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 16 testing_frequency_IDUHET
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 6 time-inf-to-diag_IDUHET
+
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 7 CD4diag_IDUMSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 18 age-at-infection_IDUMSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 19 age-diag_IDUMSM
+      ;matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 20 testing_frequency_IDUMSM
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 8 time-inf-to-diag_IDUMSM
+
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 9 CD4diag_total
+      matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 10 time-inf-to-diag_total
+       matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 11 time-inf-to-diag_nHET
+       matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 12 time-inf-to-diag_MSM
+       matrix:set TestingFreqMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 13 time-inf-to-diag_IDU
+      ;      set populationQALYs sum [QALYs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1] + ((num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0] - deadDifference) * 1 ;; should be infected or all population?
+      ;      set populationQALYs populationQALYs * interval
+      ;
+      ;      set populationCosts sum [costs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]
+      ;      set populationCosts populationCosts * interval * time-unit
+      ;print (word "populationQALY :" populationQALY)
+      ;print (word "populationCosts :" populationCosts)
+
+      ;let GDP 13000
+      set immediatereward (populationQALY * GDP) - populationCosts
+
+      set prev_HET (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+      ;print(word "prev_HET before rounding:" prev_HET)
+      set prev_HET_unrounded prev_HET
+
+      set prev_HET round (prev_HET * prev_HET_step) / prev_HET_step
+      ;set prev_HET floor (prev_HET * prev_HET_step) / prev_HET_step
+      ;print (word "prev_HET after rounding:"prev_HET)
+
+
+      set prev_MSM (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+      ;print (word "prev_MSM before rounding:"prev_MSM)
+      set prev_MSM_unrounded prev_MSM
+      set prev_MSM round (prev_MSM * prev_MSM_step) / prev_MSM_step
+      ;set prev_MSM floor (prev_MSM * prev_MSM_step) / prev_MSM_step
+      ;print (word "prev_MSM after rounding:"prev_MSM)
+
+      set prev_HET_index position prev_HET prev_HET_range ;; gives the prev_HET_index
+                                                          ;print (word "prev_HET_index:"prev_HET_index)
+      set prev_MSM_index position prev_MSM prev_MSM_range ;; gives the prev_MSM_index
+                                                          ;print (word "prev_MSM_index:"prev_MSM_index)
+
+
+      set unaware_HET (count people with [infected? = true and dead = 0 and aware? = False and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+      set unaware_HET_unrounded unaware_HET
+
+      set unaware_MSM count people with [infected? = true and dead = 0 and aware? = False and (sex = 3 or sex = 6) and stage <= 2] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+      set unaware_MSM_unrounded unaware_MSM
+      ;      print (word "unaware_HET after taking action:"unaware_HET)
+      ;      print (word "unaware_MSM after taking action:"unaware_MSM)
+
+      ;;Categorizing unaware_HET
+      ifelse unaware_HET < 0.1125 and unaware_HET > 0.0875
+      [set unaware_HET 0.1
+        set unaware_HET_index 0]
+      [ifelse unaware_HET < 0.1375 and unaware_HET > 0.1125
+        [set unaware_HET 0.125
+          set unaware_HET_index 1]
+        [if unaware_HET < 0.1625 and unaware_HET > 0.1375
+          [set unaware_HET 0.15
+            set unaware_HET_index 2]]]
+
+      ;print (word "unaware_HET_rounded:"unaware_HET)
+      ;print (word "unaware_HET_index:"unaware_HET_index)
+
+      ;;Categorizing unaware_MSM
+      ifelse unaware_MSM < 0.1125 and unaware_MSM > 0.0875
+      [set unaware_MSM 0.1
+        set unaware_MSM_index 0]
+      [ifelse unaware_MSM < 0.1375 and unaware_MSM > 0.1125
+        [set unaware_MSM 0.125
+          set unaware_MSM_index 1]
+        [ifelse unaware_MSM < 0.1625 and unaware_MSM > 0.1375
+          [set unaware_MSM 0.15
+            set unaware_MSM_index 2]
+          [if unaware_MSM < 0.1875 and unaware_MSM > 0.1625
+            [set unaware_MSM 0.175
+              set unaware_MSM_index 3]]]]
+      ;print (word "unaware_HET after taking action & after rounding:"unaware_HET)
+      ;print (word "unaware_MSM after taking action & after rounding:"unaware_MSM)
+
+      ;print (word "unaware_HET_index:"unaware_HET_index)
+      ;print (word "unaware_MSM_index:"unaware_MSM_index)
+
+      ;; (HET diagnosed with HIV with VLS) / (HET diagnosed with HIV)
+      set VLS_HET count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+      ;print (word "VLS_HET after taking action & before rounding:"VLS_HET)
+      set VLS_HET_unrounded VLS_HET
+      set VLS_HET round (VLS_HET * VLS_interval) / VLS_interval
+      ;set VLS_HET floor (VLS_HET * VLS_step) / VLS_step
+
+      ;; (MSM diagnosed with HIV with VLS) / (MSM diagnosed with HIV)
+      set VLS_MSM count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+      ;print (word "VLS_MSM after taking action & before rounding:"VLS_MSM)
+      set VLS_MSM_unrounded VLS_MSM
+      set VLS_MSM round (VLS_MSM * VLS_interval) / VLS_interval
+      ;set VLS_MSM floor (VLS_MSM * VLS_step) / VLS_step
+
+      set VLS_HET_index position VLS_HET VLS_HET_range
+      set VLS_MSM_index position VLS_MSM VLS_MSM_range
+
+      ;print (word "VLS_HET after taking action & after rounding:"VLS_HET)
+      ;print (word "VLS_MSM after taking action & after rounding:"VLS_MSM)
+
+      ;      print(word"second u_h:" unaware_change_HET)
+      ;      print(word"second u_m:" unaware_change_MSM)
+      ;      print(word"second v_h:" ARTVLS_change_HET)
+      ;      print(word"second v_m:" ARTVLS_change_MSM)
+
+      ;print (word "VLS_HET_index:"VLS_HET_index)
+      ;print (word "VLS_MSM_index:"VLS_MSM_index)
+
+
+      set TransitionState (list (prev_HET) (prev_MSM) (unaware_HET) (unaware_MSM) (VLS_HET) (VLS_MSM))
+      ifelse prev_HET > 0.005 or prev_MSM > 0.01 or unaware_HET < 0.1 or unaware_MSM < 0.1 or unaware_HET > 0.15 or unaware_MSM > 0.175 or VLS_HET < 0.5 or VLS_MSM < 0.5 or VLS_HET > 0.8 or VLS_MSM > 0.8
+      [set TransitionStateIndex (QlearningStage * (l + 1)) - 1
+        ; print(word "TransitionStateIndex:" TransitionStateIndex)
+        ;print 1
+        ;set immediatereward -8000000000000000
+      ]
+      [set TransitionStateIndex (prev_HET_index * pm * uh * um * vh * vm) + (prev_MSM_index * uh * um * vh * vm) + (unaware_HET_index * um * vh * vm) + (unaware_MSM_index * vh * vm) +(VLS_HET_index * vm) + (VLS_MSM_index) + (QlearningStage) * (l + 1)
+
+        ;print(word "TransitionStateIndex:" TransitionStateIndex)
+      ];print 2
+       ;print(word "TransitionStateIndex:" TransitionStateIndex)
+
+      ;;;;;; Calculating distributions based on CDC favorable risk groups categorization ;;;;;
+      set prev_IDU (count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+      set prev_Nhet (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+      set prev_NMSM (count people with [infected? = true and dead = 0 and sex = 3 and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)
+      ;print prev_NMSM
+      set unaware_IDU (count people with [infected? = true and dead = 0 and aware? = False and (sex = 4 or sex = 5 or sex = 6) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 1])
+      set unaware_Nhet (count people with [infected? = true and dead = 0 and aware? = False and (sex = 1 or sex = 2) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 1])
+      set unaware_NMSM (count people with [infected? = true and dead = 0 and aware? = False and sex = 3 and stage <= 2]) / (count people with [infected? = true and dead = 0 and sex = 3 and stage >= 1])
+
+      set VLS_IDU count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 1])
+      set VLS_Nhet count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 1])
+      set VLS_NMSM count people with [infected? = true and dead = 0 and sex = 3 and stage = 6] / (count people with [infected? = true and dead = 0 and sex = 3 and stage >= 1])
+
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 0 QlearningStage
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 1 prev_IDU
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 2 prev_Nhet
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 3 prev_NMSM
+
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 4 unaware_IDU
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 5 unaware_Nhet
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 6 unaware_NMSM
+
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 7 VLS_IDU
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 8 VLS_Nhet
+      matrix:set CategorizationMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 9 VLS_NMSM
+
+
+
+
+
+      set CurrentOptimalPolicy matrix:get-row matrix_policy TransitionStateIndex
+      set unaware_change_HET item 9 CurrentOptimalPolicy
+      set unaware_change_MSM item 10 CurrentOptimalPolicy
+
+      set ARTVLS_change_HET item 11 CurrentOptimalPolicy
+      set ARTVLS_change_MSM item 12 CurrentOptimalPolicy
+
+      ;    print(word"third u_h:" unaware_change_HET)
+      ;    print(word"third u_m:" unaware_change_MSM)
+      ;    print(word"third v_h:" ARTVLS_change_HET)
+      ;    print(word"third v_m:" ARTVLS_change_MSM)
+
+      set action_unaware_HET_range [0 -0.025]
+      set action_unaware_MSM_range [0 -0.025]
+
+      set action_VLS_HET_range [0 0.1 0.2]
+      set action_VLS_MSM_range [0 0.1 0.2]
+
+      set action_unaware_HET_index position unaware_change_HET action_unaware_HET_range
+      set action_unaware_MSM_index position unaware_change_MSM action_unaware_MSM_range
+      set action_VLS_HET_index position ARTVLS_change_HET action_VLS_HET_range
+      set action_VLS_MSM_index position ARTVLS_change_MSM action_VLS_MSM_range
+
+      set CurrentActionIndex (action_unaware_HET_index * a_um * a_vh * a_vm) + (action_unaware_MSM_index * a_vh * a_vm) + (action_VLS_HET_index * a_vm) + (action_VLS_MSM_index) ;+ 1 ;; gives the column of the Qmatrix
+
+      matrix:set Qoptimal ((k - 1) * stageMax) + QlearningStage + (k - 1) 0 TransitionStateIndex
+
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 0 QlearningStage
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 1 prev_HET
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 2 prev_MSM
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 3 unaware_HET
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 4 unaware_MSM
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 5 VLS_HET
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 6 VLS_MSM
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 7 prev_HET_unrounded
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 8 prev_MSM_unrounded
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 9 unaware_HET_unrounded
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 10 unaware_MSM_unrounded
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 11 VLS_HET_unrounded
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 12 VLS_MSM_unrounded
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 13 CurrentActionIndex
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 14 unaware_change_HET
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 15 unaware_change_MSM
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 16 ARTVLS_change_HET
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 17 ARTVLS_change_MSM
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 18 populationQALY
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 19 populationCosts
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 20 immediatereward
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 21 CD4diag_HET_1
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 22 CD4diag_HET_2
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 23 CD4diag_HET_3
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 24 CD4diag_HET_4
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 25 CD4diag_MSM_1
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 26 CD4diag_MSM_2
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 27 CD4diag_MSM_3
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 28 CD4diag_MSM_4
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 29 CD4diag_IDUFM_1
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 30 CD4diag_IDUFM_2
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 31 CD4diag_IDUFM_3
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 32 CD4diag_IDUFM_4
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 33 CD4diag_IDUMSM_1
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 34 CD4diag_IDUMSM_2
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 35 CD4diag_IDUMSM_3
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 36 CD4diag_IDUMSM_4
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 29 CD4diag_IDUFM_1
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 30 CD4diag_IDUFM_2
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 31 CD4diag_IDUFM_3
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 32 CD4diag_IDUFM_4
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 33 CD4diag_IDUMSM_1
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 34 CD4diag_IDUMSM_2
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 35 CD4diag_IDUMSM_3
+      matrix:set OptimalPolicyMatrix ((k - 1) * stageMax) + QlearningStage + (k - 1) 36 CD4diag_IDUMSM_4
+      ;matrix:set OptimalPolicyMatrix (((k - 1) * stageMax) + (QlearningStage - 1)) 23 CD4diag_PLWH_median
+      ;matrix:set OptimalPolicyMatrix (((k - 1) * stageMax) + (QlearningStage - 1)) 24 CD4diag_HET_median
+      ;matrix:set OptimalPolicyMatrix (((k - 1) * stageMax) + (QlearningStage - 1)) 25 CD4diag_MSM_median
+
+
+      set previous_unaware matrix:get-row matrix_unaware ActionDataRow
+      ;print(word"previous_unaware: " previous_unaware)
+
+      set previous_ARTVLS matrix:get-row matrix_ARTVLS ActionDataRow
+      ;print (word "previous_ARTVLS :" previous_ARTVLS)
+
+
+     ; print (word "COMPLETED QlearningStage Iteration #:" QlearningStage)
+      set QlearningStage QlearningStage + 1
+      ;print (word"num-het-fem:"num-HET-FEM)
+      ;print (word"num-het-men:"num-HET-MEN)
+      ;print (word"num-msm:"num-MSM)
+    ]
+    print (word "Completed MDP iteration #:" k)
+    set k k + 1
+
+
+  ]
+  csv:to-file "OptimalPolicy.csv" matrix:to-row-list OptimalPolicyMatrix
+  csv:to-file "OptimalPolicy_numNewInfBySex.csv" matrix:to-row-list numNewInfBySexMatrix
+  csv:to-file "StateIndexOptimal.csv" matrix:to-row-list Qoptimal
+  csv:to-file "Distribution.csv" matrix:to-row-list CategorizationMatrix
+  csv:to-file "Birth&Death.csv" matrix:to-row-list oldMatrix
+  csv:to-file "TestingFreq.csv" matrix:to-row-list TestingFreqMatrix
+end

@@ -1,0 +1,314 @@
+;to sensitivity-analysis
+;
+;  carefully [file-delete "results-sensitivity-analysis.csv"] []
+;  ; sensitivity variable values
+;
+;  setup-sensitive-global-var
+;  write-sensitivity-analysis-header
+;
+;  let i 0
+;  let j 0
+;  let k 0
+;  let q 0
+;  let tempVal 0
+;  let tempLength 0
+;  let assignVal 0
+;  repeat num-sensitive-var
+;  [
+;    ;; if sensitive variable is a distribution, apply the change to each entry at one time
+;    ifelse item i sensitive-var-type = 0
+;    [
+;      set j 0 
+;      repeat num-sensitive-range-var
+;      [
+;        ;; repeat all values in sensitive range
+;        set k 0
+;        set assignVal item i sensitive-var-base-val
+;        repeat length assignVal
+;        [
+;          initialize-output
+;          initialize-sensitive-globals
+;          ;; repeat all entries in the distribution
+;          set tempVal item k assignVal
+;          set q 0
+;          repeat length assignVal
+;          [
+;            ifelse tempVal * (1 + item j sensitive-range-var) > 1
+;            [
+;              ifelse q = k
+;              [set assignVal replace-item q assignVal 1]
+;              [set assignVal replace-item q assignVal 0]
+;            ]
+;            [
+;              ifelse tempVal * (1 + item j sensitive-range-var) < 0
+;              [
+;                ifelse q = k
+;                [set assignVal replace-item q assignVal 0]
+;                [set assignVal replace-item q assignVal (1 / (1 - tempVal))]
+;              ]
+;              [
+;                ;; for current entry, ce -> (1 + change) * ce
+;                ;; for other entries, oe -> ((1 - (1 + change) * ce) / (1 - ce)) * oe
+;                ifelse q = k
+;                [set assignVal replace-item q assignVal (tempVal * (1 + item j sensitive-range-var))]
+;                [set assignVal replace-item q assignVal ((item q assignVal) * ((1 - (1 + item j sensitive-range-var) * tempVal) / (1 - tempVal)))]
+;              ]
+;            ]
+;            set q q + 1
+;          ]
+;          
+;          table:put sensitive-var-table item i sensitive-var-name assignVal
+;          assign-sensitive-globals       
+;          while [tempRun < maxRun]
+;          [
+;            setup
+;            reset-ticks
+;            repeat maxTicks [go]
+;            set tempRun tempRun + 1
+;            print (word "Completed run #:" tempRun)
+;          ]          
+;          write-sensitivity-analysis i j        
+;          set k k + 1
+;        ]
+;        set j j + 1
+;      ]
+;    ]
+;    
+;    ;; if sensitive variable is not a distribution
+;    [
+;      set j 0
+;      repeat num-sensitive-range-var
+;      [
+;        initialize-output
+;        initialize-sensitive-globals
+;        set tempVal item i sensitive-var-base-val
+;        
+;        ;; if sensitive vairalbe is a single number
+;        ifelse is-number? tempVal
+;        [
+;          set tempLength 1
+;          set tempVal tempVal * (1 + item j sensitive-range-var)
+;        ]
+;        
+;        ;; if sensitive vairable is a vector
+;        [
+;          set tempLength length tempVal
+;          set tempVal map [? -> (1 + item j sensitive-range-var) * ?] tempVal
+;        ]
+;
+;        ;; if sensitive varialbe is a percentage between 0 and 1
+;        if item i sensitive-var-type = 1
+;        [
+;          ifelse tempLength = 1
+;          [
+;            ifelse tempVal > 1
+;            [set assignVal 1]
+;            [
+;              ifelse tempVal < 0
+;              [set assignVal 0]
+;              [set assignVal tempVal]
+;            ]
+;          ]
+;          [
+;            set k 0
+;            while [k < tempLength] 
+;            [
+;              ifelse item i tempVal > 1
+;              [set assignVal replace-item i assignVal 1]
+;              [
+;                ifelse item i tempVal < 0
+;                [set assignVal replace-item i assignVal 0]
+;                [set assignVal replace-item i assignVal item i tempVal]
+;              ]
+;              set k k + 1
+;            ]
+;          ]
+;        ]
+;        
+;        ;; if the sensitive variable is a non-negative number >= 0
+;        if item i sensitive-var-type = 2
+;        [
+;          ifelse tempLength = 1
+;          [
+;            ifelse tempVal < 0
+;            [set assignVal 0]
+;            [set assignVal tempVal]
+;          ]
+;          [
+;            set k 0
+;            while [k < tempLength]
+;            [
+;              ifelse item i tempVal < 0
+;              [set assignVal replace-item i assignVal 0]
+;              [set assignVal replace-item i assignVal item i tempVal]
+;              set k k + 1
+;            ]
+;          ]
+;        ]
+;          
+;        ;; if the sensitive variable is a non-positive number <= 0  
+;        if item i sensitive-var-type = 3
+;        [
+;          ifelse tempLength = 1
+;          [
+;            ifelse tempVal > 0
+;            [set assignVal 0]
+;            [set assignVal tempVal]
+;          ]
+;          [
+;            set k 0
+;            while [k < tempLength]
+;            [
+;              ifelse item i tempVal > 0
+;              [set assignVal replace-item i assignVal 0]
+;              [set assignVal replace-item i assignVal item i tempVal]
+;              set k k + 1
+;            ]
+;          ]
+;        ]
+;        
+;        ;; if the sensitive variable does not have any restrictions
+;        if item i sensitive-var-type > 3
+;        [set assignVal tempVal]
+;       
+;        ;; complete the assignment for sensitive variables and run simulation
+;        table:put sensitive-var-table item i sensitive-var-name assignVal      
+;        assign-sensitive-globals
+;        set tempRun 0       
+;        while [tempRun < maxRun]
+;        [
+;          setup
+;          reset-ticks
+;          repeat maxTicks [go]
+;          set tempRun tempRun + 1
+;          print (word "Completed run #:" tempRun)
+;        ]
+;        write-sensitivity-analysis i j
+;        set j j + 1
+;      ] 
+;    ]
+;    set i i + 1
+;  ]
+;  
+;end
+;
+;to setup-sensitive-global-var
+;  
+;  set sensitive-var-name
+;  [
+;    "percent-IDU-sharing"
+;    "percent-needles-shared-original"
+;    "percent-sharing-decline"
+;    "trans-rate-needle-after-dry-run"
+;    "trans-rate-needle-dry-run"
+;    "sex-dist-target"
+;  ]
+;  
+;  ; sensitive variable values
+;  set sensitive-var-base-val 
+;  [
+;    0.3150 ; 31.5% - 40.5%
+;    0.1603 ; 16.03% to 55.09%
+;    0.9000
+;    0.0041 ; 0.0063, 0.0041-0.0092
+;    0.0125
+;    [0.1838 0.0948 0.4848 0.0666 0.1200 0.0500] ; 2006 numbers
+;  ]
+;  
+;  ;; indicate the type of data, 0 = distributions, 1 = percentage, 2 = positive numbers, 3 = negative numbers, 4 = general numbers
+;  set sensitive-var-type
+;  [1 1 1 1 1 0]
+;  
+;  ifelse 
+;  (length sensitive-var-name != length sensitive-var-base-val) or 
+;  (length sensitive-var-name != length sensitive-var-type) or
+;  (length sensitive-var-base-val != length sensitive-var-type)
+;  [
+;    print "Error: the length of sensitivity variable names, values, and types do not agree, check sensitive variable inputs"
+;    stop
+;  ]
+;  [set num-sensitive-var length sensitive-var-name]
+;  
+;  let i 0
+;  let k 0
+;  let tempVal 0
+;  let tempType 0
+;  while [i < num-sensitive-var]
+;  [
+;    set tempVal item i sensitive-var-base-val
+;    set tempType item i sensitive-var-type
+;    ifelse is-number? tempVal
+;    [
+;      if
+;      (tempType = 1 and (tempVal > 1 or tempVal < 0)) or 
+;      (tempType = 2 and (tempVal < 0)) or
+;      (tempType = 3 and (tempVal > 0))
+;      [
+;        print (word "Error: sensitive variable " i " does not match its data type")
+;        stop
+;      ]
+;    ]
+;    [
+;      if tempType = 0 and (sum tempVal > 1.0001 or sum tempVal < 0.9999)
+;      [
+;        print (word "Error: sensitive variable " i " is supposed to be a distribution but does not sum up to 1")
+;        stop
+;      ]
+;      
+;      set k 0
+;      while [k < length tempVal]
+;      [
+;        if
+;        (tempType = 0 and (item k tempVal > 1 or item k tempVal < 0)) or
+;        (tempType = 1 and (item k tempVal > 1 or item k tempVal < 0)) or 
+;        (tempType = 2 and (item k tempVal < 0)) or
+;        (tempType = 3 and (item k tempVal > 0))
+;        [
+;          print (word "Error: sensitive variable " i " does not match its data type")
+;          stop
+;        ]
+;        set k k + 1
+;      ]
+;    ]
+;    set i i + 1
+;  ]
+;  
+;  ; % chagne in sensitivity analysis
+;  set sensitive-range-var [-.99 -.5 -.25 .25 .5 .99]
+;  set num-sensitive-range-var length sensitive-range-var
+;  
+;  set i 0
+;  while [i < num-sensitive-range-var]
+;  [
+;    if (item i sensitive-range-var > 1) or (item i sensitive-range-var < -1)
+;    [
+;      print "Error: sensitive range must be between -1 and 1"
+;      stop
+;    ]
+;    set i i + 1
+;  ]
+;  
+;end
+
+to initialize-sensitive-globals 
+  
+  set sensitive-var-table table:make
+  let k 0
+  repeat num-sensitive-var
+  [
+    table:put sensitive-var-table item k sensitive-var-name item k sensitive-var-base-val
+    set k k + 1
+  ]
+  
+end
+
+to assign-sensitive-globals
+  
+  set percent-IDU-sharing table:get sensitive-var-table "percent-IDU-sharing"
+  set percent-needles-shared-original table:get sensitive-var-table "percent-needles-shared-original"
+  set percent-sharing-decline table:get sensitive-var-table "percent-sharing-decline"
+  set trans-rate-needle-after-dry-run table:get sensitive-var-table "trans-rate-needle-after-dry-run"
+  set trans-rate-needle-dry-run table:get sensitive-var-table "trans-rate-needle-dry-run"
+  set sex-dist-target table:get sensitive-var-table "sex-dist-target"
+   
+end

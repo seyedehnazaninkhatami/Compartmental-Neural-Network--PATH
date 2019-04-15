@@ -1,0 +1,936 @@
+
+;; Optimizing HIV intervention portfolios 
+
+extensions [matrix
+  csv]
+
+
+
+to Optimization
+  clear-all
+  ;; STEP 1 : Declarying State Space and Action Space and Stage
+  ;; The statespace have been updated to [prev_HET prev_MSM unaware_HET unaware_MSM VLS_HET VLS_MSM]
+  ;; State space use prevalence of HETS and MSM;  size will be 4 * 10. 
+  ;; Increments of 0.001 from 0 to 0.003 for HET && Increments of 0.001 from 0 to 0.009 for MSM. 
+  ;; State space use unaware: values from  15% to 10% with increment of 2.5%: 10, 12.5, 15.
+  ;; VLS: values from 40% to 80% with increment of 10%.
+  ;; So size of state space will be 4 * 10 * 3 * 3 * 5 * 5. 
+  ;; Action space {unawareHET, unawareMSM, VLSHET, VLSMSM},
+  ;; But, in any time-step, possible actions are only 0%, -2.5% for unaware and  +0%, +5% for VLS, so only 2*2*3*3 possible choices in any stage. So at any time not all values of action space get filled. 
+  
+  ;; statespace
+  ;; [prev_HET prev_MSM unaware_HET unaware_MSM VLS_HET VLS_MSM]
+  ;; size of statespce
+  let ph 6        ;[0 0.001 0.002 0.003 0.004 0.005]      
+  let pm 11       ;[0 0.001 0.002 0.003 0.004 0.005 0.006 0.007 0.008 0.009 0.01]
+  let uh 3        ;[0.1 0.125 0.15]
+  let um 4        ;[0.1 0.125 0.15 0.175]
+  let vh 4        ;[0.5 0.6 0.7 0.8] 
+  let vm 4        ;[0.5 0.6 0.7 0.8] 
+  
+  
+  let l (ph * pm * uh * um * vh * vm) 
+  set prev_HET_range [0 0.001 0.002 0.003 0.004 0.005]   
+  set prev_MSM_range [0 0.001 0.002 0.003 0.004 0.005 0.006 0.007 0.008 0.009 0.01]
+  
+  set unaware_HET_range [0.1 0.125 0.15]
+  set unaware_MSM_range [0.1 0.125 0.15 0.175]
+  
+  set VLS_HET_range [0.5 0.6 0.7 0.8] 
+  set VLS_MSM_range [0.5 0.6 0.7 0.8]     
+  
+  ;  set prev_HET_IDU_range [0 0.001 0.002 0.003 0.004]   
+  ;  set prev_MSM_IDU_range [0 0.001 0.002 0.003 0.004 0.005 0.006 0.007 0.008 0.009]
+  ;  
+  ;  set unaware_HET_IDU_range[0.1 0.125 0.15]
+  ;  set unaware_MSM_IDU_range [0.1 0.125 0.15]
+  ;  
+  ;  set VLS_HET_IDU_range [0.5 0.6 0.7 0.8] 
+  ;  set VLS_MSM_IDU_range [0.5 0.6 0.7 0.8]     
+  ;  
+  
+  ;; actionspace
+  ;; [unaware_HET unaware_MSM VLS_HET VLS_MSM]
+  ;; size of actionspace
+  let a_uh 2 ;{0, -0.25}
+  let a_um 2
+  let a_vh 3 ;{0, 0.1, 0.15}
+  let a_vm 3
+  let u (a_uh * a_um * a_vh * a_vm)
+  
+  ;; stage size 
+  ;; each stage is equivalent to transitioning from one year to another.
+  let stageMax 11
+  let interval 5
+  ;; iteration size
+  let k 1
+  let kmax 2000
+  
+  ;; initialize Q-matrix  
+  let a (l + 1) * (stageMax + 1) 
+  ;let a 10
+  
+  let Qmat matrix:make-constant a u -1000000000000000 
+  let Costmat matrix:make-constant a u 0
+  let QALYmat matrix:make-constant a u 0
+  let Rmat matrix:make-constant a u 0
+  let numNewInfBySexMatrix matrix:make-constant (kmax * stageMax * interval) 7 -10
+  let index matrix:make-constant (kmax * (stageMax + 1)) 1 -5
+  ;set Rmat matrix:make-constant a 3 0
+  ;print(word "matrix:dimension: " matrix:dimensions Qmat)
+  
+  let lambda 1
+  
+  ;    let prev_HET 0
+  ;    let prev_MSM 0
+  ;    let CD4diag_HET 0
+  ;    let CD4diag_MSM 0
+  
+  ;set istate 0
+  ;set jstate 0
+  
+  ;; STEP 2 : Declarying the initial state
+  
+  ;;k-loop = ITERATIONS OF Q-learning ; 
+  ;;QlearningStage- loop= ITERATIONS of  1 cycle of finite horizon, i.e., 1 to stageMax 
+  ;set sim-dry-run 101 ;; for behavior
+  initialize-output
+  ;setup-globals
+  
+  carefully [file-delete "QMatrix.csv"] []
+  carefully [file-delete "policy.csv"] []
+  carefully [file-delete "OptimalPolicy.csv"] []
+  carefully [file-delete "results-partners.csv"] []
+  carefully [file-delete "results-PLWH-one.csv"] []
+  carefully [file-delete "results-new-infections-one.csv"] []
+  carefully [file-delete "World-Result.csv"][]
+  carefully [file-delete "World-Results-0.csv"][]
+  carefully [file-delete "World-Results-sim-dry-run.csv"][]
+  carefully [file-delete "World-Results-EndofDryRun.csv"][]
+  carefully [file-delete "CostMatrix.csv"][]
+  carefully [file-delete "QALYMatrix.csv"][]
+  carefully [file-delete "RewardMatrix.csv"][]
+  carefully [file-delete "numNewInfBySex.csv"][]  
+  
+  setup
+  reset-ticks
+  repeat maxTicks [go];; RUNS UNTIL 2015 (Just before Optimization)
+;      print(word"2015 num-het-fem:" num-het-fem)
+;      print(word"2015 num-het-men:" num-het-men)
+;      print(word"2015 num-het-msm:" num-msm)
+;      print(word"2015 num-IDU-fem:" num-IDU-fem)
+;      print(word"2015 num-IDU-men:" num-IDU-men)
+;      print(word"2015 num-IDU-msm:" num-IDU-msm)
+;      print(word"2015 total population:" (num-het-fem + num-het-men + num-msm + num-IDU-fem + num-IDU-men + num-IDU-msm))
+;      print(word"2015 infected:" count people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1])
+  
+  
+;      print(word"2015:" prevalence)
+  set QlearningStage 1
+  ;print 1
+  ;let iState 0
+  ;let jState 0
+  
+  export-world "World-Result.csv"
+  ;csv:to-file "QMatrix.csv" matrix:to-row-list Qmat 
+
+  while [k <= kmax]   ;; ITERATIONS OF MDP
+  [
+    let learningrate 271 / (300 + k) ;; A/B+k
+                                     ;print(word"learningRate:" learningrate)
+    
+    import-world "World-Result.csv"
+    random-seed new-seed 
+    let people-number num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM
+    set births-HET-FEM perc-HET-FEM * people-number * 12.4 / 1000;;birth rate = 12.4 births per 1000 people in one year
+    set births-HET-MEN births-HET-FEM
+    set births-MSM perc-MSM * people-number * 12.4 / 1000
+    set births-IDU-FEM perc-IDU-FEM * people-number * 12.4 / 1000
+    set births-IDU-MEN perc-IDU-MEN * people-number * 12.4 / 1000
+    set births-IDU-MSM perc-IDU-MSM * people-number * 12.4 / 1000
+    set death count people with [infected? = true and dead = 1]
+    set previous_death death
+    ;print(word "i:" iState)
+    ;print(word "j:" jState)
+    ;print(word "Qmat after update after import World:" matrix:get Qmat iState jState)
+    
+    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;  initial state ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    ;; Calculating prev_HET & prev_MSM
+    let prev_HET_step 1000
+    let prev_MSM_step 1000
+    
+    let prev_HET (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) 
+    ; print(word "prev_HET before rounding:" prev_HET)
+    set prev_HET round (prev_HET * prev_HET_step) / prev_HET_step
+    ;print (word "prev_HET after rounding:"prev_HET)
+    
+    let prev_MSM (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)   
+    ; print (word "prev_MSM before rounding:"prev_MSM)
+    set prev_MSM round (prev_MSM * prev_MSM_step) / prev_MSM_step
+    ;print (word "prev_MSM after rounding:"prev_MSM)
+    
+    ;; Calculating prev_HET_index & prev_MSM_index    
+    set prev_HET_index position prev_HET prev_HET_range ;; gives the prev_HET_index
+                                                        ;print (word "prev_HET_index:"prev_HET_index)
+    set prev_MSM_index position prev_MSM prev_MSM_range ;; gives the prev_MSM_index
+                                                        ;print (word "prev_MSM_index:"prev_MSM_index)                                                 
+    
+    set unaware_HET (count people with [infected? = true and dead = 0 and aware? = False and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+    ; print(word "unaware_HET before rounding:" unaware_HET)
+    set unaware_MSM count people with [infected? = true and dead = 0 and aware? = False and (sex = 3 or sex = 6) and stage <= 2] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+    ;  print (word "unaware_MSM before rounding:"unaware_MSM)
+    
+    
+    ; {10%, 12.5%, 15%}
+    
+    ifelse unaware_HET < 0.1125 and unaware_HET >= 0.0875
+    [set unaware_HET 0.1
+      set unaware_HET_index 0]
+    [ifelse unaware_HET < 0.1375 and unaware_HET >= 0.1125
+      [set unaware_HET 0.125
+        set unaware_HET_index 1]
+      [if unaware_HET < 0.1625 and unaware_HET >= 0.1375
+        [set unaware_HET 0.15
+          set unaware_HET_index 2]]]  
+    
+    ;print (word "unaware_HET_rounded: "unaware_HET)
+    ;print (word "unaware_HET_index: "unaware_HET_index)
+    
+    ifelse unaware_MSM < 0.1125 and unaware_MSM >= 0.0875
+    [set unaware_MSM 0.1
+      set unaware_MSM_index 0]
+    [ifelse unaware_MSM < 0.1375 and unaware_MSM >= 0.1125
+      [set unaware_MSM 0.125
+        set unaware_MSM_index 1]
+      [ifelse unaware_MSM < 0.1625 and unaware_MSM >= 0.1375  
+        [set unaware_MSM 0.15
+          set unaware_MSM_index 2]
+        [if unaware_MSM < 0.1875 and unaware_MSM >=  0.1625
+          [set unaware_MSM 0.175
+            set unaware_MSM_index 3]]]]
+    ;print (word "unaware_MSM_rounded:"unaware_MSM)
+    ;print (word "unaware_MSM_index:"unaware_MSM_index)
+    
+    let VLS_interval 10 
+    ;let VLS_step 10
+    ;; VLS_HET = (HET diagnosed with HIV with VLS) / (HET diagnosed with HIV)
+    set VLS_HET count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1]) 
+    ;print (word "VLS_HET before rounding:"VLS_HET)
+    set VLS_HET round (VLS_HET * VLS_interval) / VLS_interval
+    
+    ;set VLS_HET round (VLS_HET * VLS_step) / VLS_step
+    ;set VLS_HET floor (VLS_HET * VLS_step) / VLS_step
+    ;print (word "VLS_HET_rounded:"VLS_HET)
+    
+    ;; VLS_MSM = (MSM diagnosed with HIV with VLS) / (MSM diagnosed with HIV)
+    set VLS_MSM count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+    ; print (word "VLS_MSM before rounding:"VLS_MSM)
+    set VLS_MSM round (VLS_MSM * VLS_interval) / VLS_interval
+    ;set VLS_MSM round (VLS_MSM * VLS_step) / VLS_step
+    ;set VLS_MSM floor (VLS_MSM * VLS_step) / VLS_step
+    ;print (word "VLS_MSM_rounded:"VLS_MSM)
+    
+    set VLS_HET_index position VLS_HET VLS_HET_range ;; gives the VLS_HET_index
+    set VLS_MSM_index position VLS_MSM VLS_MSM_range ;; gives the VLS_MSM_index
+    
+    
+    set InitialState (list (prev_HET) (prev_MSM) (unaware_HET) (unaware_MSM) (VLS_HET) (VLS_MSM))
+    ; print(word "InitialState:" InitialState)
+    set CurrentState InitialState
+    ;print(word "CurrentState:" CurrentState)
+    
+    set InitialStateIndex (prev_HET_index * pm * uh * um * vh * vm) + (prev_MSM_index * uh * um * vh * vm) + (unaware_HET_index * um * vh * vm) + (unaware_MSM_index * vh * vm) + (VLS_HET_index * vm) + (VLS_MSM_index) ;+ (QlearningStage - 1) * (l + 1))  ;; gives the row of Qmatrix ;+ (QlearningStage - 1) * (l + 1))  ;; gives the row of Qmatrix
+    matrix:set index ((k - 1) * (stageMax + 1)) 0 InitialStateIndex
+    
+    ;print(word "InitialStateIndex:" InitialStateIndex)                                                                                                                                                                                                                     ;print (word "InitialStateIndex:" InitialStateIndex)
+    set CurrentStateIndex InitialStateIndex
+    ; print (word "CurrentStateIndex:" CurrentStateIndex)
+    
+    if QlearningStage = stageMax + 1  
+    [set QlearningStage 1
+      set CurrentState Initialstate
+      set CurrentStateIndex InitialStateIndex]
+    
+    set ActionDataRowInitial num-year-trans - dry-run 
+    ;print(word"ActionDataRowInitial:" ActionDataRowInitial) 
+    
+    set unaware_matrix_row 0
+    while [unaware_matrix_row <= 0]
+    [matrix:set matrix_unaware ActionDataRowInitial + unaware_matrix_row 0 item 2 InitialState
+      matrix:set matrix_unaware ActionDataRowInitial + unaware_matrix_row 1 item 2 InitialState
+      matrix:set matrix_unaware ActionDataRowInitial + unaware_matrix_row 2 item 3 InitialState
+      
+      ;print(word "year"(ActionDataRowInitial + unaware_matrix_row))
+      ;print(word "5 year matrix unaware initial:" matrix:get-row matrix_unaware (ActionDataRowInitial + unaware_matrix_row))
+      set unaware_matrix_row unaware_matrix_row + 1]
+    
+    set current_unaware matrix:get-row matrix_unaware (ActionDataRowInitial)
+    
+    ;print (word "initial_unaware :" current_unaware)
+    
+    set ARTVLS_matrix_row 0
+    while [ARTVLS_matrix_row <= 0]
+    [matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 0 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 1 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 2 item 5 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 3 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 4 item 4 InitialState
+      matrix:set matrix_ARTVLS ActionDataRowInitial + ARTVLS_matrix_row 5 item 5 InitialState
+      ;print(word "year"(ActionDataRowInitial + ARTVLS_matrix_row))
+      ;print(word "5 year matrix ARTVLS initial:" matrix:get-row matrix_ARTVLS (ActionDataRowInitial + ARTVLS_matrix_row))
+      set ARTVLS_matrix_row ARTVLS_matrix_row + 1]
+    
+    set current_ARTVLS matrix:get-row matrix_ARTVLS (ActionDataRowInitial)
+    
+    ;print (word "initial_ARTVLS :" current_ARTVLS)
+     
+;    set nocare_matrix_row 0
+;    while [nocare_matrix_row <= 0]
+;    [matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 0 (1 - (item 0 current_unaware + item 0 current_ARTVLS))
+;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 1 (1 - (item 1 current_unaware + item 1 current_ARTVLS))
+;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 2 (1 - (item 2 current_unaware + item 2 current_ARTVLS))
+;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 3 (1 - (item 3 current_unaware + item 3 current_ARTVLS))
+;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 4 (1 - (item 4 current_unaware + item 4 current_ARTVLS))
+;      matrix:set matrix_nocare ActionDataRowInitial + nocare_matrix_row 5 (1 - (item 5 current_unaware + item 5 current_ARTVLS))
+;      ;print(word "year"(ActionDataRowInitial + nocare_matrix_row))
+;      ; print(word "5 year matrix nocare initial:" matrix:get-row matrix_nocare (ActionDataRowInitial + nocare_matrix_row))
+;      set nocare_matrix_row nocare_matrix_row + 1]
+;    
+;    set current_nocare matrix:get-row matrix_nocare (ActionDataRowInitial)
+    
+       let time-inf-to-diag_nHET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] 
+    let time-inf-to-diag_nMSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] 
+    let time-inf-to-diag_IDU median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] 
+ 
+    
+    
+    ; STEP 3
+    while [QlearningStage <= stageMax]
+    [
+      ;print(word "Start of QlearningStage:" QlearningStage)
+      ;;Action Space includes %unaware and %VLS 
+      ;; Each year unaware will change by %0 or %-0.025 and the values for each risk group will be re-written on the matrix_unaware which includes values from 2006-2070
+      ;; If VLS < 0.6 Each 5-year VLS will change by %0 or %0.1 or %0.15 or %0.2 and the values for each risk group will be re-written on the matrix_ARTVLS which includes values from 2006-2070
+      ;; If VLS > 0.6 Each 5-year VLS will change by %0 or %0.05 or %0.1 or %0.15 and the values for each risk group will be re-written on the matrix_ARTVLS which includes values from 2006-2070
+      ;; Current Year of Optimization
+      set ActionDataRow num-year-trans - dry-run + (QlearningStage - 1) * 5 + 1
+      ;print(word"ActionDataRow:" ActionDataRow)
+      
+      ;; unaware
+      ;; Previous Year
+      set previous_unaware matrix:get-row matrix_unaware (ActionDataRow - 1)
+      ;print(word "previous_unaware:"previous_unaware)
+      
+      set action_unaware_HET_range [0 -0.025]
+      set action_unaware_MSM_range [0 -0.025]
+      
+      set action_VLS_HET_range [0 0.1 0.2]
+      set action_VLS_MSM_range [0 0.1 0.2] 
+      
+      ;; Randomly select the unaware action
+      set unaware_change_HET random-float 1
+      ;print(word"random u_h:"unaware_change_HET)
+      ifelse unaware_change_HET > 0.5
+      [set unaware_change_HET 0
+        set action_unaware_HET_index 0
+        ;print (word "action_unaware_HET inside 1:" unaware_change_HET)
+        ;print (word "action_unaware_HET_index inside:" action_unaware_HET_index)
+      ]
+      [set unaware_change_HET -0.025
+        ifelse item 0 previous_unaware + unaware_change_HET <= 0.099999
+        [set unaware_change_HET 0
+          set action_unaware_HET_index 0
+          ;print (word "action_unaware_HET inside 2:" unaware_change_HET)
+          ;print (word "action_unaware_HET_index inside:" action_unaware_HET_index)
+        ]
+        [set unaware_change_HET -0.025
+          set action_unaware_HET_index 1
+          ;print (word "action_unaware_HET inside 3:" unaware_change_HET)
+          ;print (word "action_unaware_HET_index inside:" action_unaware_HET_index)
+      ]]     
+      
+      ;print (word "unaware_change_HET after check:" unaware_change_HET)
+      ;print (word "unaware_change_HET_index :" action_unaware_HET_index)
+      
+      set unaware_change_MSM random-float 1
+      ;print(word"random u_m:"unaware_change_MSM)
+      ifelse unaware_change_MSM > 0.5
+      [set unaware_change_MSM 0
+        set action_unaware_MSM_index 0
+        ;print (word "unaware_change_MSM inside 1:" unaware_change_MSM)
+        ;print (word "unaware_change_MSM_index inside:" action_unaware_MSM_index)
+      ]
+      [set unaware_change_MSM -0.025
+        ifelse item 2 previous_unaware + unaware_change_MSM <= 0.099999
+        [set unaware_change_MSM 0
+          set action_unaware_MSM_index 0
+          ;print (word "unaware_change_MSM inside 2:" unaware_change_MSM)
+          ;print (word "unaware_change_MSM_index inside:" action_unaware_MSM_index)
+        ]
+        [set unaware_change_MSM -0.025
+          set action_unaware_MSM_index 1
+          ; print (word "unaware_change_MSM inside 3:" unaware_change_MSM)
+          ;print (word "unaware_change_MSM_index inside:" action_unaware_MSM_index)
+      ]]
+      
+      ;matrix:set matrix_unaware ActionDataRow 2 item 2 previous_unaware + unaware_change_MSM
+      set unaware_change_HET unaware_change_HET / interval
+      set unaware_change_MSM unaware_change_MSM / interval
+      ;print(word"unaware_change_MSM: "unaware_change_MSM)
+      
+      set unaware_matrix_row 0
+      while [unaware_matrix_row <= 4]
+      [matrix:set matrix_unaware ActionDataRow + unaware_matrix_row 0 item 0 previous_unaware + unaware_change_HET * (unaware_matrix_row + 1)
+        matrix:set matrix_unaware ActionDataRow + unaware_matrix_row 1 item 1 previous_unaware + unaware_change_HET * (unaware_matrix_row + 1)
+        matrix:set matrix_unaware ActionDataRow + unaware_matrix_row 2 item 2 previous_unaware + unaware_change_MSM * (unaware_matrix_row + 1)
+        ; print(word "year"(ActionDataRow + unaware_matrix_row))
+        ; print(word "5 year matrix unaware:" matrix:get-row matrix_unaware (ActionDataRow + unaware_matrix_row))
+        set unaware_matrix_row unaware_matrix_row + 1]
+      
+      
+      ;print (word "unaware_change_MSM after check:" unaware_change_MSM)
+      ;print (word "unaware_change_MSM_index :" action_unaware_MSM_index)
+      
+      set current_unaware matrix:get-row matrix_unaware (ActionDataRow + unaware_matrix_row - 1)
+      ;print (word "current_unaware :" current_unaware)
+      
+      ;; ART_VLS, linearity has been applied to the actions taken within the 5-year interval.
+      set previous_ARTVLS matrix:get-row matrix_ARTVLS (ActionDataRow - 1)
+      ; print(word "previous_ARTVLS:"previous_ARTVLS)
+      
+      
+      set ARTVLS_change_HET random-float 1.5
+      ; print(word"rand VLS_h: "ARTVLS_change_HET)
+      ifelse ARTVLS_change_HET < 0.5
+      [set ARTVLS_change_HET 0
+        set action_VLS_HET_index 0
+        ; print (word "action_ARTVLS_HET inside :" ARTVLS_change_HET)
+        ; print (word "action_ARTVLS_HET_index inside:" action_VLS_HET_index)
+      ]
+      [ifelse ARTVLS_change_HET > 0.5 and  ARTVLS_change_HET < 1
+        [set ARTVLS_change_HET 0.1
+          set action_VLS_HET_index 1
+          ; print (word "action_ARTVLS_HET inside :" ARTVLS_change_HET)
+          ; print (word "action_ARTVLS_HET_index inside:" action_VLS_HET_index)
+        ]
+        [ set ARTVLS_change_HET 0.2
+          set action_VLS_HET_index 2
+          ; print (word "action_ARTVLS_HET inside :" ARTVLS_change_HET)
+          ; print (word "action_ARTVLS_HET_index inside:" action_VLS_HET_index)
+        ]
+      ]
+      
+      
+      
+      ifelse item 0 previous_ARTVLS + ARTVLS_change_HET >= 0.80001
+      [set  ARTVLS_change_HET 0
+        set action_VLS_HET_index position ARTVLS_change_HET action_VLS_HET_range
+        ; print(word"HET exceeds subtraction:"ARTVLS_change_HET)
+        ; print(word"HET exceeds subtraction index:"action_VLS_HET_index)
+      ]
+      [set ARTVLS_change_HET ARTVLS_change_HET
+        set action_VLS_HET_index action_VLS_HET_index
+        ; print (word "action_ARTVLS_HET inside :" ARTVLS_change_HET)
+        ; print (word "action_ARTVLS_HET_index inside:" action_VLS_HET_index) 
+      ]
+      
+      
+      ;      matrix:set matrix_ARTVLS ActionDataRow 0 item 0 previous_ARTVLS + ARTVLS_change_HET
+      ;      matrix:set matrix_ARTVLS ActionDataRow 1 item 1 previous_ARTVLS + ARTVLS_change_HET
+      ;      
+      ; print (word "action_ARTVLS_HET after check :" ARTVLS_change_HET)
+      ;print (word "action_ARTVLS_HET_index :" action_VLS_HET_index)
+      ;      
+      ;      
+      
+      set ARTVLS_change_MSM random-float 1.5
+      ;print(word"rand VLS_m: "ARTVLS_change_MSM)
+      ifelse ARTVLS_change_MSM < 0.5
+      [set ARTVLS_change_MSM 0
+        set action_VLS_MSM_index 0
+        ;print (word "action_ARTVLS_MSM inside :" ARTVLS_change_MSM)
+        ;print (word "action_ARTVLS_MSM_index inside:" action_VLS_MSM_index)
+      ] 
+      [ifelse ARTVLS_change_MSM > 0.5 and  ARTVLS_change_MSM < 1
+        [set ARTVLS_change_MSM 0.1
+          set action_VLS_MSM_index 1
+          ;print (word "action_ARTVLS_MSM inside :" ARTVLS_change_MSM)
+          ;print (word "action_ARTVLS_MSM_index inside:" action_VLS_MSM_index)
+        ]
+        [ set ARTVLS_change_MSM 0.2
+          set action_VLS_MSM_index 2
+          ; print (word "action_ARTVLS_MSM inside :" ARTVLS_change_MSM)
+          ; print (word "action_ARTVLS_MSM_index inside:" action_VLS_MSM_index)
+        ]
+      ]
+      
+      ifelse item 2 previous_ARTVLS + ARTVLS_change_MSM >= 0.80001
+      [set  ARTVLS_change_MSM 0
+        set action_VLS_MSM_index position ARTVLS_change_MSM action_VLS_MSM_range
+        ; print(word"MSM exceeds subtraction:"ARTVLS_change_MSM)
+        ; print(word"MSM exceeds subtraction index:"action_VLS_MSM_index)
+      ]
+      [set ARTVLS_change_MSM ARTVLS_change_MSM
+        set action_VLS_MSM_index action_VLS_MSM_index
+        ; print (word "action_ARTVLS_MSM inside :" ARTVLS_change_MSM)
+        ; print (word "action_ARTVLS_MSM_index inside:" action_VLS_MSM_index) 
+      ]
+      
+      ;matrix:set matrix_ARTVLS ActionDataRow 2 item 2 previous_ARTVLS + ARTVLS_change_MSM
+      set ARTVLS_change_HET (ARTVLS_change_HET / interval) 
+      set ARTVLS_change_MSM (ARTVLS_change_MSM / interval)
+      set ARTVLS_matrix_row 0
+      while [ARTVLS_matrix_row <= 4]
+      [
+        ; matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 0 (VLS_interval * round ((item 0 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1)) / VLS_interval))
+        ; matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 1 (VLS_interval * round ((item 1 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1)) / VLS_interval))
+        ; matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 2 (VLS_interval * round ((item 2 previous_ARTVLS + ARTVLS_change_MSM * (ARTVLS_matrix_row + 1)) / VLS_interval))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 0 (item 0 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1)) 
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 1 (item 1 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 2 (item 2 previous_ARTVLS + ARTVLS_change_MSM * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 3 (item 3 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1)) 
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 4 (item 4 previous_ARTVLS + ARTVLS_change_HET * (ARTVLS_matrix_row + 1))
+        matrix:set matrix_ARTVLS ActionDataRow + ARTVLS_matrix_row 5 (item 5 previous_ARTVLS + ARTVLS_change_MSM * (ARTVLS_matrix_row + 1))
+        ; print(word "year"(ActionDataRow + ARTVLS_matrix_row))
+        ; print(word "5 year matrix ARTVLS:" matrix:get-row matrix_ARTVLS (ActionDataRow + ARTVLS_matrix_row))
+        set ARTVLS_matrix_row ARTVLS_matrix_row + 1]
+      
+      ;print (word "action_ARTVLS_MSM after check :" ARTVLS_change_MSM)
+      ; print (word "action_ARTVLS_MSM_index :" action_VLS_MSM_index) 
+      
+      set current_ARTVLS matrix:get-row matrix_ARTVLS (ActionDataRow + ARTVLS_matrix_row - 1)
+      ;print(word"current_ARTVLS: "current_ARTVLS)
+      ;; The nocare has been commented out and the data file has set to zero for nocare after 2016, the code itself will take care of the proportions in the stages.
+;      set nocare_matrix_row 0
+;      while [nocare_matrix_row <= 4]                                 
+;      [ matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 0 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 0)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 0)))
+;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 1 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 1)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 1)))
+;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 2 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 2)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 2)))
+;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 3 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 3)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 3)))
+;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 4 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 4)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 4)))
+;        matrix:set matrix_nocare ActionDataRow + nocare_matrix_row 5 (1 - ((matrix:get matrix_unaware (ActionDataRow + nocare_matrix_row) 5)+ (matrix:get matrix_ARTVLS (ActionDataRow + nocare_matrix_row) 5)))
+;        ;print(word "year"(ActionDataRow + ARTVLS_matrix_row))
+;        ;print(word "5 year matrix no care:" matrix:get-row matrix_nocare (ActionDataRow + nocare_matrix_row))
+;        set nocare_matrix_row nocare_matrix_row + 1]
+;       
+;      set current_nocare matrix:get-row matrix_nocare (ActionDataRow + nocare_matrix_row - 1)
+      ;print (word "current_nocare :" current_nocare)
+      
+      let CurrentActionValues (list (current_unaware) (current_ARTVLS))
+      ;print (word "CurrentActionValues :" CurrentActionValues)
+      ;print (word "CurrentAction for unaware_HET, unaware_MSM, ARTVLS_HET, ARTVLS_MSM:" unaware_change_HET word ", "  unaware_change_MSM word ", " (ARTVLS_change_HET * interval) word ", " (ARTVLS_change_MSM * interval))
+      
+      
+      ;;Finding action index
+      set CurrentActionIndex (action_unaware_HET_index * a_um * a_vh * a_vm) + (action_unaware_MSM_index * a_vh * a_vm) + (action_VLS_HET_index * a_vm) + (action_VLS_MSM_index) ;+ 1 ;; gives the column of the Qmatrix
+                                                                                                                                                                                 ;print (word "CurrentActionIndex :" CurrentActionIndex)
+        ;print (word"matrix_ARTVLS" matrix:get-row matrix_ARTVLS ActionDataRow)                                                                                                                                                                         ;print (word"matrix_unaware" matrix:get-row matrix_unaware ActionDataRow)
+      set populationCosts 0
+      set populationQALY 0
+
+      repeat 5 [
+        repeat 12 [go
+      set populationCosts populationCosts + sum [costs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]
+        ]
+;        set death count people with [infected? = true and dead = 1]
+;        set deadDifference (death - previous_death) 
+;        set previous_death death
+        set populationQALY populationQALY + sum [QALYs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1] + ((num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0]) * 1 ;; should be infected or all population?
+        let year (ticks - 2 - sim-dry-run - time-unit * num-year-trans) / time-unit
+        ;print ticks
+        ;print(word"year: "year)
+        set newly-infected people with [infected? = true and trans-year = ceiling((ticks - 2 - sim-dry-run) / time-unit)]
+        ;print(word"newly-infected: "newly-infected)
+        let num-new-infections-this-year count newly-infected
+        ;print(word"num-new-infections-this-year: "num-new-infections-this-year)
+        ;; f and m separate
+        let num-new-HETFem-this-year count newly-infected with [sex = 1]
+        let num-new-HETMale-this-year count newly-infected with [sex = 2] 
+        let num-new-MSM-this-year count newly-infected with [sex = 3]   
+        let num-new-IDUFem-this-year count newly-infected with [sex = 4] 
+        let num-new-IDUMen-this-year count newly-infected with [sex = 5] 
+        let num-new-IDUMSM-this-year count newly-infected with [sex = 6] 
+        
+        
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 0 year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 1 num-new-HETFem-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 2 num-new-HETMale-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 3 num-new-MSM-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 4 num-new-IDUFem-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 5 num-new-IDUMen-this-year
+        matrix:set numNewInfBySexMatrix (((k - 1 ) * (stagemax * interval)) + year - 1) 6 num-new-IDUMSM-this-year
+        ;        
+        ;        set j j + 1]
+
+      ]
+      
+      let HET_FEM_risk_factor 0.062
+      let HET_MEN_risk_factor 0.105
+      let MSM_risk_factor 1 
+      let IDU_risk_factor 1 
+      let HIV_negative_testing_cost 42
+        
+          
+       ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] 
+      [set time-inf-to-diag_nHET 100]
+      [set time-inf-to-diag_nHET median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+      
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] 
+      [set time-inf-to-diag_nMSM 100]
+      [set time-inf-to-diag_nMSM median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 3) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+      
+      ifelse empty? [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] 
+      [set time-inf-to-diag_IDU 100]
+      [set time-inf-to-diag_IDU median [time-inf-to-diag] of people with [infected? = true and dead = 0 and (sex = 4 or sex = 5 or sex = 6) and stage >= 3 and abs (ticks - next-test) <= 1 * time-unit * interval] ]
+    
+      
+      
+;        let HIV_negative_cost_HET ((num-HET-FEM + num-HET-MEN + num-IDU-FEM + num-IDU-MEN) - count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+;            * factor * HET_risk_factor * HIV_negative_testing_cost * interval / time-inf-diag
+;     
+;        let HIV_negative_cost_MSM ((num-MSM + num-IDU-MSM) - count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])) * factor * MSM_risk_factor * HIV_negative_testing_cost
+;        
+;        set populationCosts populationCosts + HIV_negative_cost_HET + HIV_negative_cost_MSM 
+;        
+        
+        ;;OR
+
+      let HIV_negative_cost_HET (( (num-HET-FEM * HET_FEM_risk_factor) + (num-HET-MEN * HET_MEN_risk_factor)) * (1 / factor) - count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+        * HIV_negative_testing_cost * interval / time-inf-to-diag_nHET
+     
+        let HIV_negative_cost_MSM ((num-MSM) - count people with [infected? = true and dead = 0 and (sex = 3) and stage >= 1]) * HIV_negative_testing_cost * interval / time-inf-to-diag_nMSM
+        
+        let HIV_negative_cost_IDU ((num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0 and (sex = 4  or sex = 5 or sex = 6) and stage >= 1])  
+          * HIV_negative_testing_cost * interval / time-inf-to-diag_IDU
+
+        set populationCosts populationCosts + HIV_negative_cost_HET + HIV_negative_cost_MSM + HIV_negative_cost_IDU
+;    print(HIV_negative_cost_HET)
+;    print(HIV_negative_cost_MSM)
+;      print(HIV_negative_cost_IDU)
+      
+;      set populationQALY sum [QALYs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1] + ((num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) - count people with [infected? = true and dead = 0] - deadDifference) * 1 ;; should be infected or all population?
+;      set populationQALY populationQALY * interval
+;      
+;      set populationCosts sum [costs] of people with [infected? = true and dead = 0 and sex >= 1 and stage >= 1]
+;      set populationCosts populationCosts * interval * time-unit
+      ;print (word "populationQALY :" populationQALY)
+      ;print (word "populationCosts :" populationCosts)
+      
+      let GDP 54000
+      set immediatereward (populationQALY * GDP) - populationCosts  ;; 
+      ;print (word "usual immediatereward :" immediatereward)
+      
+      
+      ;;Keeping track of mean & median CD4diag_HET & CD4diag_MSM
+      ;   let CD4diag_HET median [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3]  
+      ;   let CD4diag_MSM median [CD4-diagnosis] of people with [infected? = true and dead = 0 and sex = 3 and stage >= 3]
+      ;   
+      ;   set CD4diag_HET mean [CD4-diagnosis] of people with [infected? = true and dead = 0 and (sex = 1 or sex = 2) and stage >= 3]  
+      ;   set CD4diag_MSM mean [CD4-diagnosis] of people with [infected? = true and dead = 0 and sex = 3 and stage >= 3]
+      ;   
+      ;   let newly-diagnosed-people people with [infected? = true and stage >= 3 and CD4-diagnosis >= 4 and abs (ticks - next-test) <= 1 * time-unit]
+      ;   let newly-diagnosed-PLWH count newly-diagnosed-people
+      ;   let newly-diagnosed-MSM-people newly-diagnosed-people with [sex = 3]
+      ;   let newly-diagnosed-MSM count newly-diagnosed-MSM-people
+      ;   let newly-diagnosed-HET-people newly-diagnosed-people with [sex <= 2]
+      ;   let newly-diagnosed-HET count newly-diagnosed-HET-people  
+      ;   
+      ;   ;set CD4diag_PLWH median [CD4-diagnosis] of newly-diagnosed-PLWH with [infected? = true and dead = 0 and stage >= 3]
+      ;
+      ;   set CD4diag_HET median [CD4-diagnosis] of newly-diagnosed-HET-people with [infected? = true and dead = 0 and stage >= 3]  
+      ;   ;print(word" median CD4diag_HET: "CD4diag_HET)
+      ;    
+      ;   set CD4diag_MSM median [CD4-diagnosis] of newly-diagnosed-MSM-people with [infected? = true and dead = 0 and stage >= 3]
+      ;   ;print(word" median CD4diag_MSM: "CD4diag_MSM)
+      ;   ;set CD4diag_PLWH mean [CD4-diagnosis] of newly-diagnosed-PLWH with [infected? = true and dead = 0 and stage >= 3]
+      ;   set CD4diag_HET mean [CD4-diagnosis] of newly-diagnosed-HET-people with [infected? = true and dead = 0 and stage >= 3]
+      ;   ;print(word" mean CD4diag_HET: "CD4diag_HET)   
+      ;   set CD4diag_MSM mean [CD4-diagnosis] of newly-diagnosed-MSM-people with [infected? = true and dead = 0 and stage >= 3]
+      ;   ;print(word" mean CD4diag_MSM: "CD4diag_MSM)
+      
+      
+      ;print(word "Values after taking action and simulating")
+      
+      ;    let prev_HET_step 1000
+      ;    let prev_MSM_step 1000
+      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; System state ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+      set prev_HET (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM) 
+      ;print(word "prev_HET before rounding:" prev_HET)
+      set prev_HET round (prev_HET * prev_HET_step) / prev_HET_step
+      ;print (word "prev_HET after rounding:"prev_HET)
+      
+      set prev_MSM (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1]) / (num-HET-FEM + num-HET-MEN + num-MSM + num-IDU-FEM + num-IDU-MEN + num-IDU-MSM)   
+      ;print (word "prev_MSM before rounding:"prev_MSM)
+      set prev_MSM round (prev_MSM * prev_MSM_step) / prev_MSM_step
+      ;print (word "prev_MSM after rounding:"prev_MSM)
+      
+      ;; Calculating prev_HET_index & prev_MSM_index    
+      set prev_HET_index position prev_HET prev_HET_range ;; gives the prev_HET_index
+                                                          ; print (word "prev_HET_index:"prev_HET_index)
+      set prev_MSM_index position prev_MSM prev_MSM_range ;; gives the prev_MSM_index
+                                                          ; print (word "prev_MSM_index:"prev_MSM_index)                                                 
+                                                          ; {10%, 12.5%, 15%}
+      
+      set unaware_HET (count people with [infected? = true and dead = 0 and aware? = False and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage <= 2]) / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1])
+      ; print(word "unaware_HET before rounding:" unaware_HET)
+      set unaware_MSM count people with [infected? = true and dead = 0 and aware? = False and (sex = 3 or sex = 6) and stage <= 2] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+      ; print (word "unaware_MSM before rounding:"unaware_MSM)
+      
+      
+      ifelse unaware_HET < 0.1125 and unaware_HET > 0.0875
+      [set unaware_HET 0.1
+        set unaware_HET_index 0]
+      [ifelse unaware_HET < 0.1375 and unaware_HET > 0.1125
+        [set unaware_HET 0.125
+          set unaware_HET_index 1]
+        [if unaware_HET < 0.1625 and unaware_HET > 0.1375
+          [set unaware_HET 0.15
+            set unaware_HET_index 2]]]  
+      
+      ;print (word "unaware_HET_rounded: "unaware_HET)
+      ;print (word "unaware_HET_index: "unaware_HET_index)
+      
+      ifelse unaware_MSM < 0.1125 and unaware_MSM > 0.0875
+      [set unaware_MSM 0.1
+        set unaware_MSM_index 0]
+      [ifelse unaware_MSM < 0.1375 and unaware_MSM > 0.1125
+        [set unaware_MSM 0.125
+          set unaware_MSM_index 1]
+        [ifelse unaware_MSM < 0.1625 and unaware_MSM > 0.1375  
+          [set unaware_MSM 0.15
+            set unaware_MSM_index 2]
+          [if unaware_MSM < 0.1875 and unaware_MSM > 0.1625
+            [set unaware_MSM 0.175
+              set unaware_MSM_index 3]]]]
+      ;print (word "unaware_MSM_rounded:"unaware_MSM)
+      ;print (word "unaware_MSM_index:"unaware_MSM_index)
+      
+      ;let VLS_interval 10 
+      ;let VLS_step 10
+      ;; VLS_HET = (HET diagnosed with HIV with VLS) / (HET diagnosed with HIV)
+      set VLS_HET count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 1 or sex = 2 or sex = 4 or sex = 5) and stage >= 1]) 
+      ;print (word "VLS_HET before rounding:"VLS_HET)
+      set VLS_HET round (VLS_HET * VLS_interval) / VLS_interval
+      
+      ;set VLS_HET round (VLS_HET * VLS_step) / VLS_step
+      ;set VLS_HET floor (VLS_HET * VLS_step) / VLS_step
+      ;print (word "VLS_HET_rounded:"VLS_HET)
+      
+      ;; VLS_MSM = (MSM diagnosed with HIV with VLS) / (MSM diagnosed with HIV)
+      set VLS_MSM count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage = 6] / (count people with [infected? = true and dead = 0 and (sex = 3 or sex = 6) and stage >= 1])
+      ;print (word "VLS_MSM before rounding:"VLS_MSM)
+      set VLS_MSM round (VLS_MSM * VLS_interval) / VLS_interval
+      ;set VLS_MSM round (VLS_MSM * VLS_step) / VLS_step
+      ;set VLS_MSM floor (VLS_MSM * VLS_step) / VLS_step
+      ;print (word "VLS_MSM_rounded:"VLS_MSM)
+      
+      set VLS_HET_index position VLS_HET VLS_HET_range ;; gives the VLS_HET_index
+      set VLS_MSM_index position VLS_MSM VLS_MSM_range ;; gives the VLS_MSM_index
+      
+      
+      
+      ;print (word "VLS_HET_IDU_index:"VLS_HET_IDU_index) 
+      ;print (word "VLS_MSM_IDU_index:"VLS_MSM_IDU_index) 
+      
+      set TransitionState (list (prev_HET) (prev_MSM) (unaware_HET) (unaware_MSM) (VLS_HET) (VLS_MSM) )
+      ;print(word "TransitionState:" TransitionState)
+      
+      ;; STEP 4
+      ;; equation to calculate the state index transition
+      ifelse prev_HET > 0.005 or prev_MSM > 0.01 or unaware_HET < 0.1 or unaware_MSM < 0.1 or unaware_HET > 0.15 or unaware_MSM > 0.175 or VLS_HET < 0.5 
+      or VLS_MSM < 0.5 or VLS_HET > 0.8 or VLS_MSM > 0.8   
+      [set TransitionStateIndex (QlearningStage * (l + 1)) - 1
+        ;print(word "TransitionStateIndex:" TransitionStateIndex)
+        ;print 1            
+        set immediatereward -8000000000000000]
+      [set TransitionStateIndex (prev_HET_index * pm * uh * um * vh * vm) + (prev_MSM_index * uh * um * vh * vm) + (unaware_HET_index * um * vh * vm) + (unaware_MSM_index * vh * vm) + (VLS_HET_index * vm) + (VLS_MSM_index) + (QlearningStage) * (l + 1)  ;; gives the row of Qmatrix
+                                                                                                                                                                                                                               ;print(word "TransitionStateIndex:" TransitionStateIndex)
+                                                                                                                                                                                                                               ;print 2
+      ] 
+      ;print (word "TransitionStateIndex:" TransitionStateIndex)
+      matrix:set index ((k - 1) * stageMax) + QlearningStage + (k - 1) 0 TransitionStateIndex 
+      ;print(word "immediatereward:" immediatereward)
+      ;[print(word "immediatereward:" immediatereward)]
+      
+      ;; Q(i,s,a) = (1 - alpha) Q(i,s,a) + alpha * [r(i,s,a,j,s+1) + lamda * max Q(j,s+1,b)] b member of A(j,s+1)
+      set Qnext max matrix:get-row Qmat TransitionStateIndex 
+      ;print(word "Qnext:" Qnext) 
+      set Qmat_prev matrix:get Qmat CurrentStateIndex CurrentActionIndex
+      ;print(word "Qmat_prev:" Qmat_prev)
+      ;set Qmatchange (1 - LearningRate) * Qmat_prev + LearningRate * (ImmediateReward + lambda * Qnext)
+      ;print(word "Qmat before update:" matrix:get Qmat CurrentStateIndex CurrentActionIndex)
+      
+      matrix:set Qmat CurrentStateIndex CurrentActionIndex (1 - LearningRate) * Qmat_prev + LearningRate * (ImmediateReward + lambda * Qnext)
+      ;print(word "Qmat after update:"matrix:get Qmat CurrentStateIndex CurrentActionIndex)
+      matrix:set Costmat CurrentStateIndex CurrentActionIndex populationCosts
+      matrix:set QALYmat CurrentStateIndex CurrentActionIndex populationQALY
+      matrix:set Rmat CurrentStateIndex CurrentActionIndex immediatereward
+      
+      ;set iState CurrentStateIndex
+      ;set jState CurrentActionIndex
+      ;print(word "i:" iState)
+      ;print(word "j:" jState)
+      
+      set CurrentState TransitionState 
+      set CurrentStateIndex TransitionStateIndex
+      ;print (word "Completed QlearningStage iteration #:" QlearningStage)
+      set QlearningStage QlearningStage + 1
+      ;;      csv:to-file  "Qmatrix.csv" [Qmat]
+      
+    ]
+    
+    print (word "Completed MDP iteration #:" k)
+    ;    
+    set k k + 1
+    
+    ;  
+    ; csv:to-file "QMatrix.csv" matrix:to-row-list Qmat  
+    
+  ]
+  
+  csv:to-file "QMatrix.csv" matrix:to-row-list Qmat
+  csv:to-file "CostMatrix.csv" matrix:to-row-list Costmat
+  csv:to-file "QALYMatrix.csv" matrix:to-row-list QALYmat
+  csv:to-file "RewardMatrix.csv" matrix:to-row-list Rmat
+  csv:to-file "numNewInfBySex.csv" matrix:to-row-list numNewInfBySexMatrix
+  csv:to-file "index.csv" matrix:to-row-list index
+  
+  
+  set PolicyMat matrix:make-constant a 13 0
+  ; Find optimal Strategy
+  set row 0
+  while [row <= (l + 1) * stageMax - 1]
+  [set eachRow matrix:get-row Qmat row
+    ;print(word "eachRow:" eachRow)
+    set maximum max eachRow
+    ;set minimum min eachRow
+    ;print(word "maximum:" maximum)
+    ;print(word "minimum:" min minimum)
+    set action position maximum eachRow
+    set action action + 1
+    ;print(word "action:" action)        
+    ;  set populationQALY matrix:get Rmat row 0
+    ;  set populationCosts matrix:get Rmat row 1
+    ;  set immediatereward matrix:get Rmat row 2
+    ;set OptimalAction action
+    ;print(word "OptimalAction:" OptimalAction)
+    
+    set unaware_HET_index_number_action ceiling (action / (a_um * a_vh * a_vm ))
+    if unaware_HET_index_number_action = 0 [set unaware_HET_index_number_action 1]
+    ;print (word "unaware_HET_index_number_action:" unaware_HET_index_number_action)
+    set unaware_HET_action_value item (unaware_HET_index_number_action - 1) action_unaware_HET_range
+    ;set unaware_HET_action_value max(list unaware_HET_action_value item (unaware_HET_index_number_action - 1) action_unaware_HET_range)
+    
+    ;print (word "unaware_HET_action_value:" unaware_HET_action_value)
+    
+    set a1 action - ((unaware_HET_index_number_action - 1) * a_um * a_vh * a_vm)
+    set unaware_MSM_index_number_action ceiling (a1 / (a_vh * a_vh))  
+    if unaware_MSM_index_number_action = 0 [set unaware_MSM_index_number_action 1]
+    ;print (word "unaware_MSM_index_number_action:" unaware_MSM_index_number_action)
+    set unaware_MSM_action_value item (unaware_MSM_index_number_action - 1) action_unaware_MSM_range
+    ;set unaware_MSM_action_value max(list unaware_MSM_action_value item (unaware_MSM_index_number_action - 1) action_unaware_MSM_range  )
+    ;print (word "unaware_MSM_action_value:" unaware_MSM_action_value)
+    
+    set a2 a1 - ((unaware_MSM_index_number_action - 1) * a_vh * a_vm)
+    set VLS_HET_index_number_action ceiling (a2 / a_vh)
+    if VLS_HET_index_number_action = 0 [set VLS_HET_index_number_action 1]
+    ;print (word "VLS_HET_index_number_action:" VLS_HET_index_number_action)
+    set VLS_HET_action_value item (VLS_HET_index_number_action - 1) action_VLS_HET_range
+    ;print (word "VLS_HET_action_value:" VLS_HET_action_value)
+    
+    set a3 a2 - ((VLS_HET_index_number_action - 1) * a_vm)
+    set VLS_MSM_index_number_action ceiling (a3 / 1)
+    if  VLS_MSM_index_number_action = 0 [set  VLS_MSM_index_number_action 1]
+    ;print (word "VLS_MSM_index_number_action:" VLS_MSM_index_number_action)
+    set VLS_MSM_action_value item (VLS_MSM_index_number_action - 1) action_VLS_MSM_range
+    ;print (word "VLS_MSM_action_value:" VLS_MSM_action_value)
+    
+    set Stage_Num ceiling ((row + 1) / (l + 1))
+    ;if Stage_Num = 0 [set Stage_Num 1]
+    ;if Stage_Num < 0 [set Stage_Num 1]
+    ;print(word "Stage_Num:" Stage_Num)
+    
+    
+    ;print(word "r1:" r1)       
+    ifelse (row + 1) mod (l + 1) = 0
+    [
+      matrix:set PolicyMat row 0 Stage_Num
+      matrix:set PolicyMat row 1 0.006
+      matrix:set PolicyMat row 2 0.02
+      matrix:set PolicyMat row 3 0.099
+      matrix:set PolicyMat row 4 0.099
+      matrix:set PolicyMat row 5 0.81
+      matrix:set PolicyMat row 6 0.81
+      matrix:set PolicyMat row 7 maximum
+      matrix:set PolicyMat row 8 action
+      matrix:set PolicyMat row 9 unaware_HET_action_value
+      matrix:set PolicyMat row 10 unaware_MSM_action_value
+      matrix:set PolicyMat row 11 VLS_HET_action_value
+      matrix:set PolicyMat row 12 VLS_MSM_action_value]
+    
+    [
+      set r1 (row + 1) - ((Stage_Num - 1) * (l + 1))  
+      set prev_HET_index_number ceiling (r1 / (pm * uh * um * vh * vm))
+      ;if prev_HET_index_number < 0 [set prev_HET_index_number 1]
+      ;print(word "prev_HET_index_number:" prev_HET_index_number)
+      set prev_HET_value item (prev_HET_index_number - 1) prev_HET_range
+      ;print (word "prev_HET_value:" prev_HET_value)
+      
+      set r2 r1 - ((prev_Het_index_number - 1) * pm * uh * um * vh * vm)
+      ;print(word "r2:" r2) 
+      
+      set prev_MSM_index_number ceiling (r2 / (uh * um * vh * vm))
+      ;if prev_MSM_index_number < 0 [set prev_MSM_index_number 1]
+      ;print(word "prev_MSM_index_number:" prev_MSM_index_number)
+      set prev_MSM_value item (prev_MSM_index_number - 1) prev_MSM_range
+      ;print (word "prev_MSM_value:" prev_MSM_value)
+      
+      set r3 r2 - ((prev_MSM_index_number - 1) * uh * um * vh * vm)
+      ;print(word "r3:" r3) 
+      
+      set unaware_HET_index_number ceiling (r3 / (um * vh * vm))
+      ;if unaware_HET_index_number < 0 [set unaware_HET_index_number 1]
+      ;print(word "unaware_HET_index_number:" unaware_HET_index_number)
+      set unaware_HET_value item (unaware_HET_index_number - 1) unaware_HET_range
+      ;print (word "unaware_HET_value:" unaware_HET_value)
+      
+      set r4 r3 - ((unaware_het_index_number - 1) * um * vh * vm)
+      set unaware_MSM_index_number ceiling (r4 / (vh * vm))
+      ;print (word "unaware_MSM_index_number:" unaware_MSM_index_number)
+      set unaware_MSM_value item (unaware_MSM_index_number - 1) unaware_MSM_range
+      ;print (word "unaware_MSM_value:" unaware_MSM_value)
+      
+      set r5 r4 - ((unaware_MSM_index_number - 1) * vh * vm)
+      set VLS_HET_index_number ceiling (r5 / vm)
+      ;print (word "VLS_HET_index_number:" VLS_HET_index_number)
+      set VLS_HET_value item (VLS_HET_index_number - 1) VLS_HET_range
+      ;print (word "VLS_HET_value:" VLS_HET_value)
+      
+      set r6 r5 - ((VLS_HET_index_number - 1) * vm)
+      set VLS_MSM_index_number ceiling (r6 / 1)
+      ;print (word "VLS_MSM_index_number:" VLS_MSM_index_number)
+      set VLS_MSM_value item (VLS_MSM_index_number - 1) VLS_MSM_range
+      ;print (word "VLS_MSM_value:" VLS_MSM_value)
+      
+      matrix:set PolicyMat row 0 Stage_Num
+      matrix:set PolicyMat row 1 prev_HET_value
+      matrix:set PolicyMat row 2 prev_MSM_value
+      matrix:set PolicyMat row 3 unaware_HET_value
+      matrix:set PolicyMat row 4 unaware_MSM_value
+      matrix:set PolicyMat row 5 VLS_HET_value
+      matrix:set PolicyMat row 6 VLS_MSM_value
+      matrix:set PolicyMat row 7 maximum
+      matrix:set PolicyMat row 8 action
+      matrix:set PolicyMat row 9 unaware_HET_action_value
+      matrix:set PolicyMat row 10 unaware_MSM_action_value
+      matrix:set PolicyMat row 11 VLS_HET_action_value
+      matrix:set PolicyMat row 12 VLS_MSM_action_value]
+    
+    
+    ;print(word "OptimalAction for Stage:" Stage_Num  word ", prev_HET:" prev_HET_value word ", prev_MSM:" prev_MSM_value word ", unaware_HET:" unaware_HET_value word ", unaware_MSM:" unaware_MSM_value word ", VLS_HET:" VLS_HET_value word ", VLS_MSM:" VLS_MSM_value word "is:" word " unaware_HET should change by:" unaware_HET_action_value word ", unaware_MSM should change by:" unaware_MSM_action_value word ", VLS_HET should change by:" VLS_HET_action_value word ", VLS_MSM should change by:" VLS_MSM_action_value )
+    set row row + 1
+  ]
+  ;print(word "OptimalAction for Stage:" Stage_Num  word ", prev_HET:" prev_HET_value word ", prev_MSM:" prev_MSM_value word ", unaware_HET:" unaware_HET_value word ", unaware_MSM:" unaware_MSM_value word ", VLS_HET:" VLS_HET_value word ", VLS_MSM:" VLS_MSM_value word "is: " word " unaware_HET should change by:" unaware_HET_action_value word ", unaware_MSM should change by:" unaware_MSM_action_value word ", VLS_HET should change by:" VLS_HET_action_value word ", VLS_MSM should change by:" VLS_MSM_action_value )
+  ;print(maximum)
+  csv:to-file "policy.csv" matrix:to-row-list PolicyMat
+end
